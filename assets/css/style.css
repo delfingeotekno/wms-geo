@@ -1,0 +1,296 @@
+body {
+    font-family: 'Inter', sans-serif; /* Menggunakan font Inter */
+    background-color: #f8f9fa; /* Latar belakang body agak abu-abu terang */
+    overflow-x: hidden; /* Mencegah scrollbar horizontal */
+}
+
+/* --- Wrapper untuk Sidebar dan Konten Utama --- */
+#wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* --- Sidebar Styling --- */
+.sidebar-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 250px; /* Lebar Sidebar */
+    background-color: #34495e; /* Warna gelap sidebar */
+    color: #ecf0f1; /* Warna teks default sidebar */
+    padding-top: 20px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1030; /* Sidebar di atas navbar pada mobile */
+    transition: margin-left 0.3s ease-in-out;
+    display: flex; /* Untuk menyusun elemen sidebar secara vertikal */
+    flex-direction: column;
+}
+
+.sidebar-heading {
+    padding: 1rem 1.25rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ffffff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center; /* Membuat logo dan teks sejajar vertikal */
+    justify-content: center; /* Membuat logo dan teks rata kiri */
+}
+
+.sidebar-heading .logo-container {
+    display: flex;
+    justify-content: center; /* Center the logo horizontally */
+    align-items: center; /* Center the logo vertically */
+
+}
+
+.sidebar-heading img {
+    max-width: 100%; /* Make the logo responsive */
+    height: auto; /* Maintain aspect ratio */
+    width: 300px; /* Set a fixed width */
+}
+
+.sidebar-wrapper .list-group {
+    padding: 0 15px;
+}
+
+.sidebar-wrapper .list-group-item {
+    background-color: transparent;
+    color: #ecf0f1;
+    border: none;
+    margin-bottom: 10px;
+    padding: 12px 20px;
+    transition: all 0.3s ease-in-out;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-wrapper .list-group-item:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Latar belakang saat hover */
+    color: #ffffff;
+    transform: translateX(5px); /* Efek geser sedikit saat hover */
+}
+
+/* Style untuk menu aktif (Rounded Pill Effect) */
+.sidebar-wrapper .list-group-item.active {
+    background-color: #ffffff; /* Latar belakang putih */
+    color: #2c3e50 !important; /* Warna teks sidebar aktif */
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Tambahkan shadow */
+    transform: translateX(0); /* Pastikan tidak bergeser */
+}
+
+.sidebar-wrapper .list-group-item.active i {
+    color: #2c3e50; /* Warna ikon menu aktif */
+}
+
+/* --- Page Content Wrapper (Area Konten Utama) --- */
+#page-content-wrapper {
+    margin-left: 250px; /* Jarak dari sidebar */
+    width: calc(100% - 250px); /* Lebar konten utama */
+    padding: 20px; /* Padding di sekitar konten utama */
+    transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out; /* Animasi untuk toggle */
+}
+
+/* --- Navbar (Header) Styling --- */
+.navbar {
+    background-color: #ffffff !important; /* Latar belakang navbar putih */
+    width: 100%; /* Lebar navbar (total width - sidebar - margin kiri/kanan) */
+    position: relative;
+    z-index: 1020; /* Navbar di atas konten, di bawah sidebar */
+    /* border-bottom: none; /* Hapus border bawaan Bootstrap */
+}
+
+/* Search Bar Styling */
+.navbar .form-control {
+    background-color: #f0f2f5; /* Warna latar belakang search bar */
+    border: none;
+    border-radius: 20px; /* Rounded corners */
+    padding-left: 1.5rem; /* Ruang untuk ikon */
+}
+
+.navbar .input-group-text {
+    color: #6c757d; /* Warna ikon search */
+    background-color: transparent;
+    border: none;
+}
+
+/* Dropdown Menu untuk User Info */
+.navbar-nav .dropdown-menu {
+    font-size: 0.95rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-nav .dropdown-item {
+    color: #343a40;
+}
+
+.navbar-nav .dropdown-item:hover {
+    background-color: #f0f2f5;
+}
+
+/* Notifikasi Badge */
+.navbar-nav .badge {
+    font-size: 0.7em;
+    padding: 0.3em 0.5em;
+}
+
+/* --- Dashboard Specific Styles --- */
+.content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Agar responsif */
+    margin-bottom: 2rem;
+}
+
+.content-header h1 {
+    color: #343a40;
+    font-size: 2rem;
+}
+
+.content-header .alert {
+    background-color: #d1e7dd; /* Light green */
+    border-color: #badbcc;
+    color: #0f5132;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.card.card-dashboard {
+    border-radius: 12px; /* Lebih rounded */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border: none;
+    transition: transform 0.2s ease-in-out;
+}
+
+.card.card-dashboard:hover {
+    transform: translateY(-5px); /* Efek angkat saat hover */
+}
+
+.card.card-dashboard .card-body {
+    padding: 1.5rem;
+}
+
+.card-dashboard .card-title {
+    font-size: 2.2rem;
+}
+
+.card-dashboard .card-subtitle {
+    font-size: 0.9rem;
+}
+
+.card-dashboard .display-5 {
+    opacity: 0.7; /* Ikon sedikit transparan */
+}
+
+.card-dashboard .bi { font-size: 3rem; }
+.bg-success-subtle { background-color: #d1e7dd; }
+.bg-danger-subtle { background-color: #f8d7da; }
+.bg-primary-subtle { background-color: #cfe2ff; }
+.bg-info-subtle { background-color: #cff4fc; }
+
+/* List Group for Activities and Loans */
+.list-group-item {
+    border-color: #e9ecef; /* Border antar item list */
+}
+
+.list-group-item:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.list-group-item:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+/* Custom Badges for activities */
+.badge.bg-success-subtle, .badge.bg-danger-subtle, .badge.bg-primary-subtle, .badge.bg-info-subtle {
+    padding: 0.4em 0.7em;
+    font-weight: 600;
+    border-radius: 5px;
+}
+
+.custom-readonly-input {
+    background-color: #f0f0f0; /* Warna abu-abu muda */
+    border: 1px solid #ced4da; /* Agar konsisten dengan input lain */
+    cursor: not-allowed; /* Menambahkan kursor 'tidak diizinkan' */
+}
+
+
+
+/* Menyesuaikan tampilan QuaggaJS agar tidak melebihi modal */
+#interactive.viewport {
+    position: relative;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
+    max-height: 400px; /* Batasi tinggi maksimum agar tidak terlalu besar */
+    border-radius: 8px;
+    background-color: #333;
+    display: none; /* Sembunyikan secara default */
+}
+
+#interactive.viewport > video,
+#interactive.viewport > canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Memastikan video/canvas pas di dalam elemen tanpa distorsi */
+}
+
+#interactive.viewport .drawingBuffer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+
+
+/* --- Responsiveness --- */
+@media (max-width: 768px) {
+    .sidebar-wrapper {
+        margin-left: -250px; /* Sembunyikan sidebar secara default di mobile */
+        height: 100vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* smooth scroll iOS */
+    }
+    #page-content-wrapper {
+        margin-left: 0;
+        width: 100%;
+    }
+    body.toggled .sidebar-wrapper { /* Saat tombol toggle ditekan */
+        margin-left: 0;
+    }
+    #page-content-wrapper.toggled { /* Dorong konten utama ke kanan saat sidebar muncul */
+        margin-left: 250px;
+    }
+    .navbar {
+        width: calc(100% - 30px); /* Sesuaikan lebar navbar di mobile */
+        margin: 15px; /* Margin lebih kecil di mobile */
+    }
+    .navbar .d-md-none { /* Hamburger toggle selalu terlihat di mobile */
+        display: block !important;
+    }
+    .navbar .d-md-flex { /* Sembunyikan search bar di mobile secara default */
+        display: none !important;
+    }
+    .navbar-nav .d-none.d-lg-block { /* Sembunyikan quick links di mobile */
+        display: none !important;
+    }
+    .content-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .content-header h1 {
+        margin-bottom: 1rem;
+    }
+    .content-header .alert {
+        width: 100%;
+    }
+}

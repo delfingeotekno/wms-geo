@@ -1,0 +1,21 @@
+# Database configuration
+includes/db_connect.php
+
+# Dependency directories
+vendor/
+node_modules/
+
+# Uploaded content
+uploads/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.log
+
+# IDE files
+.vscode/
+.idea/
+.gemini/
