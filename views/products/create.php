@@ -363,7 +363,7 @@ if (isset($_SESSION['success_message'])) {
 
       <div id="serial_numbers_input_group" class="mb-3" style="<?= (isset($_POST['has_serial']) && $_POST['has_serial'] == 1) ? 'display: block;' : 'none' ?>">
           <div class="d-flex justify-content-between align-items-center mb-2">
-              <label class="form-label mb-0">Daftar Serial Number</label>
+              <label class="form-label mb-0">Daftar Serial Number <span class="text-muted fw-normal" style="font-size:0.85rem;">(Opsional: Kosongkan jika stok awal = 0)</span></label>
               <div class="btn-group">
                   <button type="button" class="btn btn-outline-primary btn-sm" id="addSerialBtn">
                       <i class="bi bi-plus-circle me-1"></i> Tambah Baris
@@ -381,7 +381,7 @@ if (isset($_SESSION['success_message'])) {
                   <button type="button" class="btn btn-outline-danger remove-serial-btn"><i class="bi bi-trash"></i></button>
               </div>
           </div>
-          <small class="text-muted">*Pastikan setiap kolom terisi jika produk memiliki S/N.</small>
+          <small class="text-muted">*Biarkan baris kosong jika Anda belum memiliki barang fisik/S/N saat mendaftarkan produk ini.</small>
       </div>
      
       <div class="mb-3">
@@ -458,14 +458,13 @@ document.addEventListener('DOMContentLoaded', function() {
   let scannerStream;
   let scanningInterval;
 
-  // --- FUNGSI: Tambah Baris Kolom Baru ---
   function addNewSerialRow(value = '') {
     const rowCount = serialContainer.querySelectorAll('.serial-row').length + 1;
     const newRow = document.createElement('div');
     newRow.className = 'input-group mb-2 serial-row';
     newRow.innerHTML = `
       <span class="input-group-text">${rowCount}</span>
-      <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="${value}" required>
+      <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="${value}">
       <button type="button" class="btn btn-outline-danger remove-serial-btn"><i class="bi bi-trash"></i></button>
     `;
     serialContainer.appendChild(newRow);
