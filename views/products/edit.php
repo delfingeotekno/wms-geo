@@ -80,6 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $unit_post = trim($_POST['unit']);
   $minimum_stock_level = (int)$_POST['minimum_stock_level'];
   $location = trim($_POST['location']);
+  $lead_time_avg = isset($_POST['lead_time_avg']) ? (int)$_POST['lead_time_avg'] : 7;
+  $lead_time_max = isset($_POST['lead_time_max']) ? (int)$_POST['lead_time_max'] : 14;
   $has_serial_post = isset($_POST['has_serial']) ? 1 : 0;
   $note = trim($_POST['note']);
   $product_warehouse_id = empty($_POST['product_warehouse_id']) ? null : (int)$_POST['product_warehouse_id'];
@@ -228,9 +230,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // UPDATE PRODUK (Stok global jangan diupdate manual karena sudah otomatis di-sync via DB Trigger)
-    $sql_update = "UPDATE products SET product_code = ?, brand_id = ?, product_name = ?, product_type_id = ?, unit = ?, minimum_stock_level = ?, location = ?, has_serial = ?, product_image = ?, note = ?, warehouse_id = ?, updated_at = ? WHERE id = ?";
+    $sql_update = "UPDATE products SET product_code = ?, brand_id = ?, product_name = ?, product_type_id = ?, unit = ?, minimum_stock_level = ?, location = ?, lead_time_avg = ?, lead_time_max = ?, has_serial = ?, product_image = ?, note = ?, warehouse_id = ?, updated_at = ? WHERE id = ?";
     $stmt = $conn->prepare($sql_update);
-    $stmt->bind_param('sisisisissisi', $current_product_code, $brand_id_post, $product_name, $product_type_id, $unit_post, $minimum_stock_level, $location, $has_serial_post, $product_image_filename, $note, $product_warehouse_id, $updated_at, $product_id);
+    $stmt->bind_param('sisisisiiissisi', $current_product_code, $brand_id_post, $product_name, $product_type_id, $unit_post, $minimum_stock_level, $location, $lead_time_avg, $lead_time_max, $has_serial_post, $product_image_filename, $note, $product_warehouse_id, $updated_at, $product_id);
     
     if ($stmt->execute()) {
       $conn->commit();
@@ -364,6 +366,17 @@ while ($row = $res_s->fetch_assoc()) { $existing_serials_for_display[] = $row['s
           <div class="col-md-6 mb-3">
             <label for="location" class="form-label">Lokasi</label>
             <input type="text" class="form-control" id="location" name="location" value="<?= htmlspecialchars($product['location']) ?>" required>
+          </div>
+        </div>
+                
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label for="lead_time_avg" class="form-label">Rata-rata Pengiriman (Lead Time Avg - Hari)</label>
+            <input type="number" class="form-control" id="lead_time_avg" name="lead_time_avg" value="<?= htmlspecialchars($product['lead_time_avg'] ?? 7) ?>" required min="0">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label for="lead_time_max" class="form-label">Maks Pengiriman (Lead Time Max - Hari)</label>
+            <input type="number" class="form-control" id="lead_time_max" name="lead_time_max" value="<?= htmlspecialchars($product['lead_time_max'] ?? 14) ?>" required min="0">
           </div>
         </div>
                 

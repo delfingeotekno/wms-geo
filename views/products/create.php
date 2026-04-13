@@ -40,6 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $location = trim($_POST['location']);
   $minimum_stock_level = (int)$_POST['minimum_stock_level'];
   $note = trim($_POST['note']); // <<< PERUBAHAN 1: Ambil nilai catatan
+  $lead_time_avg = isset($_POST['lead_time_avg']) ? (int)$_POST['lead_time_avg'] : 7;
+  $lead_time_max = isset($_POST['lead_time_max']) ? (int)$_POST['lead_time_max'] : 14;
   $has_serial = isset($_POST['has_serial']) ? 1 : 0;
   $product_warehouse_id = !empty($_POST['product_warehouse_id']) ? (int)$_POST['product_warehouse_id'] : null;
   
@@ -174,12 +176,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // --- QUERY SQL UNTUK MENYIMPAN DATA PRODUK ---
-    $sql = "INSERT INTO products (product_code, brand_id, product_name, product_type_id, unit, stock, minimum_stock_level, location, has_serial, product_image, note, warehouse_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+    $sql = "INSERT INTO products (product_code, brand_id, product_name, product_type_id, unit, stock, minimum_stock_level, location, lead_time_avg, lead_time_max, has_serial, product_image, note, warehouse_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
    
     $stmt = $conn->prepare($sql);
    
     if ($stmt) {
-      $stmt->bind_param("sisisiisissi", $product_code, $brand_id, $product_name, $product_type_id, $unit, $stock, $minimum_stock_level, $location, $has_serial, $product_image, $note, $product_warehouse_id);
+      $stmt->bind_param("sisisiisiiissi", $product_code, $brand_id, $product_name, $product_type_id, $unit, $stock, $minimum_stock_level, $location, $lead_time_avg, $lead_time_max, $has_serial, $product_image, $note, $product_warehouse_id);
      
       if ($stmt->execute()) {
         $product_id = $conn->insert_id;
@@ -343,6 +345,16 @@ if (isset($_SESSION['success_message'])) {
         </div>
       </div>
 
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="lead_time_avg" class="form-label">Rata-rata Pengiriman (Lead Time Avg - Hari)</label>
+          <input type="number" class="form-control" id="lead_time_avg" name="lead_time_avg" required min="0" value="<?= isset($_POST['lead_time_avg']) ? htmlspecialchars($_POST['lead_time_avg']) : '7' ?>">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="lead_time_max" class="form-label">Maks Pengiriman (Lead Time Max - Hari)</label>
+          <input type="number" class="form-control" id="lead_time_max" name="lead_time_max" required min="0" value="<?= isset($_POST['lead_time_max']) ? htmlspecialchars($_POST['lead_time_max']) : '14' ?>">
+        </div>
+      </div>
             <div class="row">
         <div class="col-12 mb-3">
           <label for="note" class="form-label">Catatan (Opsional)</label>

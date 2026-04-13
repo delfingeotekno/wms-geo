@@ -36,6 +36,7 @@ $po_active = '';
 $assembly_active = '';
 $stock_request_active = '';
 $transfer_active = '';
+$analytics_rop_active = '';
 
 if ($request_path === '/' || $request_path === '/wms-geo/index.php') {
     $dashboard_active = 'active';
@@ -67,6 +68,8 @@ if ($request_path === '/' || $request_path === '/wms-geo/index.php') {
     $assembly_active = 'active';
 } elseif (strpos($request_path, '/wms-geo/views/transfer') === 0) {
     $transfer_active = 'active';
+} elseif (strpos($request_path, '/wms-geo/views/analytics') === 0) {
+    $analytics_rop_active = 'active';
 }
 // Ambil warehouse_id dari session
 $warehouse_id = $_SESSION['warehouse_id'] ?? 0;
@@ -129,6 +132,11 @@ $stmt->close();
             <a href="/wms-geo/index.php" class="list-group-item list-group-item-action rounded-pill <?= $dashboard_active ?>">
                 <i class="bi bi-speedometer2 me-2"></i> Dashboard
             </a>
+            <?php if ($role == 'admin' || $role == 'manager' || $role == 'procurement' || $role == 'staff'): ?>
+            <a href="/wms-geo/views/analytics/rop.php" class="list-group-item list-group-item-action rounded-pill <?= $analytics_rop_active ?>">
+                <i class="bi bi-graph-up-arrow me-2"></i> Analisis Stok (ROP)
+            </a>
+            <?php endif; ?>
             <a href="/wms-geo/views/products/index.php" class="list-group-item list-group-item-action rounded-pill <?= $products_active ?>">
                 <i class="bi bi-box-seam me-2"></i> Produk
             </a>

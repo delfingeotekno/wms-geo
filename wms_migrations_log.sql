@@ -29,4 +29,14 @@ CREATE TABLE IF NOT EXISTS `assembly_outbound_results` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- MIGRATION TERBARU BERIKUTNYA DITULIS DI BAWAH INI:
+
+-- --------------------------------------------------------------------
+-- [TANGGAL: 10 April 2026]
+-- FITUR: Analisis ROP & Inventory (Reorder Point & Safety Stock)
+-- TUJUAN: Menambahkan rentang lead time harian ke master data produk
+-- --------------------------------------------------------------------
+ALTER TABLE `products` 
+ADD COLUMN `lead_time_avg` INT NOT NULL DEFAULT 7 AFTER `location`,
+ADD COLUMN `lead_time_max` INT NOT NULL DEFAULT 14 AFTER `lead_time_avg`;
+
 -- [TANDA BATAS]
