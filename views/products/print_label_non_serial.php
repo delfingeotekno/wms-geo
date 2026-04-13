@@ -81,35 +81,35 @@ $pages = array_chunk($total_labels, 21);
             text-align: center;
         }
 
-        /* Teks Nama Produk */
+        /* Teks Nama Produk - Dikecilkan kembali */
         .product-text { 
-            font-size: 10pt; 
-            font-weight: bold;
+            font-size: 8pt; 
+            font-weight: 600;
             color: #000; 
-            line-height: 1.2;
+            line-height: 1.1;
             width: 100%;
             word-wrap: break-word;
-            margin-bottom: 2mm;
-            max-height: 12mm;
+            margin-bottom: 1mm;
+            max-height: 8mm;
             overflow: hidden;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
         }
 
-        /* Ukuran Barcode */
+        /* Ukuran Barcode - Diperbesar secara visual */
         .barcode-img { 
             width: 100%; 
-            height: 12mm; 
-            object-fit: contain;
+            height: 18mm; 
+            object-fit: fill; /* Memaksa mengisi area agar lebih tebal */
             margin-bottom: 1mm;
         }
 
-        /* Teks Kode Produk di Bawah Barcode */
+        /* Teks Kode Produk - Dikecilkan kembali */
         .code-text { 
-            font-size: 11pt; 
+            font-size: 9pt; 
             font-weight: bold; 
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             margin: 0;
             line-height: 1;
         }
@@ -138,7 +138,7 @@ $pages = array_chunk($total_labels, 21);
                         </div>
 
                         <img class="barcode-img" 
-                             src="https://bwipjs-api.metafloor.com/?bcid=code128&text=<?= urlencode($code) ?>&scale=3&height=30&rotate=N&includetext=false" 
+                             src="https://bwipjs-api.metafloor.com/?bcid=code128&text=<?= urlencode($code) ?>&scale=4&height=40&rotate=N&includetext=false" 
                              alt="Barcode">
 
                         <div class="code-text">
