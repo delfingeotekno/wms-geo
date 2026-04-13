@@ -26,9 +26,9 @@ if (!$product) {
 
 $product_name = $product['product_name'];
 
-// 3. Pecah jumlah cetak menjadi array per 40 label (1 halaman TJ 108 = 40 stiker)
+// 3. Pecah jumlah cetak menjadi array per 21 label (Grid 3x7)
 $total_labels = range(1, $qty);
-$pages = array_chunk($total_labels, 40);
+$pages = array_chunk($total_labels, 21);
 ?>
 
 <!DOCTYPE html>
@@ -56,57 +56,60 @@ $pages = array_chunk($total_labels, 40);
             page-break-after: always;
         }
 
-        /* Grid 5 Kolom x 8 Baris (Total 40) */
+        /* Grid 3 Kolom x 7 Baris (Total 21) - Optimal untuk A4 */
         .label-grid { 
             display: grid; 
-            grid-template-columns: repeat(5, 38mm); 
-            grid-template-rows: repeat(8, 18mm); 
-            column-gap: 3.5mm; /* Celah horizontal antar stiker */
-            row-gap: 2.5mm;    /* Celah vertikal antar stiker */
+            grid-template-columns: repeat(3, 64mm); 
+            grid-template-rows: repeat(7, 34mm); 
+            column-gap: 2mm; 
+            row-gap: 2mm;
             justify-content: center;
         }
 
         /* Box Stiker Individual */
         .label-box {
-            width: 38mm; 
-            height: 18mm; 
-            border: 0.1mm dashed #eee; /* Garis bantu, hilang saat print */
+            width: 64mm; 
+            height: 34mm; 
+            border: 0.1mm dashed #ccc; 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
-            justify-content: space-between; 
+            justify-content: center; 
             overflow: hidden; 
-            padding: 1mm 1mm;
+            padding: 3mm;
             box-sizing: border-box;
             text-align: center;
         }
 
         /* Teks Nama Produk */
         .product-text { 
-            font-size: 5pt; 
-            font-weight: 600;
+            font-size: 10pt; 
+            font-weight: bold;
             color: #000; 
-            line-height: 1.1;
+            line-height: 1.2;
             width: 100%;
             word-wrap: break-word;
-            margin: 0;
-            max-height: 5.5mm;
+            margin-bottom: 2mm;
+            max-height: 12mm;
             overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
 
         /* Ukuran Barcode */
         .barcode-img { 
             width: 100%; 
-            height: 9.5mm; 
+            height: 12mm; 
             object-fit: contain;
-            margin: 0;
+            margin-bottom: 1mm;
         }
 
         /* Teks Kode Produk di Bawah Barcode */
         .code-text { 
-            font-size: 6.5pt; 
+            font-size: 11pt; 
             font-weight: bold; 
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
             margin: 0;
             line-height: 1;
         }
@@ -135,7 +138,7 @@ $pages = array_chunk($total_labels, 40);
                         </div>
 
                         <img class="barcode-img" 
-                             src="https://bwipjs-api.metafloor.com/?bcid=code128&text=<?= urlencode($code) ?>&scale=2&height=35&rotate=N&includetext=false" 
+                             src="https://bwipjs-api.metafloor.com/?bcid=code128&text=<?= urlencode($code) ?>&scale=3&height=30&rotate=N&includetext=false" 
                              alt="Barcode">
 
                         <div class="code-text">
