@@ -78,19 +78,33 @@ foreach ($details_raw as $row) {
 // Format ulang array untuk digunakan di ItemTable
 $details = [];
 foreach ($grouped_details as $item) {
-  $notes = '';
-  
   if ($item['has_serial'] == 1 && !empty($item['serial_numbers'])) {
-    // Gabungkan setiap S/N dengan pemisah baris \n
-    $notes = 'S/N: ' . implode("\nS/N: ", $item['serial_numbers']);
+    // Pecah array serial_numbers menjadi beberapa baris (maksimal 15 item per baris)
+    // Hal ini untuk menghindari error jika string terlalu panjang hingga melewati batas satu halaman penuh PDF
+    $chunks = array_chunk($item['serial_numbers'], 15);
+    $total_chunks = count($chunks);
+    foreach ($chunks as $index => $chunk) {
+        $notes = ($index === 0 ? 'S/N: ' : '') . implode(", ", $chunk);
+        $details[] = [
+            'product_name' => ($index === 0) ? $item['product_name'] : '', // Kosongkan nama produk untuk kelanjutan baris
+            'quantity' => ($index === 0) ? $item['quantity'] : '',
+            'unit' => ($index === 0) ? $item['unit'] : '',
+            'notes' => $notes, 
+            'is_continuation' => ($index > 0),
+            'is_last' => ($index === $total_chunks - 1)
+        ];
+    }
+  } else {
+    // Jika tidak ada S/N
+    $details[] = [
+      'product_name' => $item['product_name'],
+      'quantity' => $item['quantity'],
+      'unit' => $item['unit'],
+      'notes' => '', 
+      'is_continuation' => false,
+      'is_last' => true
+    ];
   }
-
-  $details[] = [
-    'product_name' => $item['product_name'],
-    'quantity' => $item['quantity'],
-    'unit' => $item['unit'],
-    'notes' => $notes, 
-  ];
 }
 // --- END: LOGIKA PENGELOMPOKAN SERIAL NUMBER ---
 
@@ -278,9 +292,23 @@ $i = 1;
             $y_start = $this->GetY();
         }
 
-        // --- MENGGAMBAR SEMUA KOTAK DENGAN RECT (TIDAK ADA GARIS BAWAH GANDA) ---
-        // Gambar kotak besar untuk seluruh baris, ini akan memberikan garis atas, bawah, kiri, dan kanan.
-        $this->Rect($x_start, $y_start, array_sum($w), $h); 
+        // --- MENGGAMBAR BORDER KOTAK (SIMULASI 1 BARIS) ---
+        // Alih-alih Rect, kita gambar garis per garis. Jika continuation, border atas dihilangkan. Jika bukan last, border bawah dihilangkan.
+        $total_width = array_sum($w);
+        
+        // Garis batas Kiri dan Kanan
+        $this->Line($x_start, $y_start, $x_start, $y_start + $h); // Kiri
+        $this->Line($x_start + $total_width, $y_start, $x_start + $total_width, $y_start + $h); // Kanan
+        
+        // Garis batas Atas
+        if (!isset($row['is_continuation']) || !$row['is_continuation']) {
+            $this->Line($x_start, $y_start, $x_start + $total_width, $y_start); 
+        }
+        
+        // Garis batas Bawah
+        if (!isset($row['is_last']) || $row['is_last']) {
+            $this->Line($x_start, $y_start + $h, $x_start + $total_width, $y_start + $h);
+        }
         
         // Garis pemisah Vertikal:
         $x_current = $x_start;
@@ -293,7 +321,11 @@ $i = 1;
         
     // 1. Kolom NO
     $this->SetXY($x_start, $y_start + ($h - 6) / 2); 
-    $this->Cell($w[0], 6, $i++, 0, 0, 'C'); 
+    $row_num = '';
+    if (!isset($row['is_continuation']) || !$row['is_continuation']) {
+        $row_num = $i++;
+    }
+    $this->Cell($w[0], 6, $row_num, 0, 0, 'C'); 
     
     // 2. Kolom Description (MultiCell untuk nama panjang)
     $this->SetXY($x_start + $w[0], $y_start + ($h - $desc_height) / 2);
@@ -328,17 +360,21 @@ $i = 1;
     $y_signature_header = $this->GetY();
     $x_signature_start = $this->GetX();
 
-    $this->Cell(95, 6, 'Dibuat Oleh', 'TLR', 0, 'C'); // Top, Left, Right border
-    $this->Cell(95, 6, 'Diterima Oleh', 'TR', 1, 'C'); // Top, Right border, pindah baris
+    $this->Cell(63, 6, 'Dibuat Oleh', 'TLR', 0, 'C'); // Top, Left, Right border
+    $this->Cell(64, 6, 'Diperiksa Oleh', 'TLR', 0, 'C'); 
+    $this->Cell(63, 6, 'Diterima Oleh', 'TR', 1, 'C'); // Top, Right border, pindah baris
 
     // Kotak Tanda Tangan (Area Kosong)
-    $this->Cell(95, 12, '', 'LR', 0, 'C'); // Left, Right border
-    $this->Cell(95, 12, '', 'R', 1, 'C'); // Right border, pindah baris
+    $this->Cell(63, 12, '', 'LR', 0, 'C'); // Left, Right border
+    $this->Cell(64, 12, '', 'LR', 0, 'C'); 
+    $this->Cell(63, 12, '', 'R', 1, 'C'); // Right border, pindah baris
 
     // Nama dan Jabatan
     $this->SetFont('Arial', '', 9);
-    $this->Cell(95, 6, 'Windah', 'BLR', 0, 'C'); // Bottom, Left, Right border
-    $this->Cell(95, 6, 'Warehouse', 'BR', 1, 'C'); // Bottom, Right border, pindah baris
+    $creator_name = isset($this->transaction['creator_name']) && !empty($this->transaction['creator_name']) ? $this->transaction['creator_name'] : 'Admin';
+    $this->Cell(63, 6, $creator_name, 'BLR', 0, 'C'); // Bottom, Left, Right border
+    $this->Cell(64, 6, '', 'BLR', 0, 'C'); 
+    $this->Cell(63, 6, 'Warehouse', 'BR', 1, 'C'); // Bottom, Right border, pindah baris
     
     // Pastikan ada baris kosong setelah tanda tangan jika catatan mengikuti
     $this->Ln(2);

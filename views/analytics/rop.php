@@ -35,6 +35,14 @@ $active_warehouse_id = isset($_GET['warehouse_id']) ? (int)$_GET['warehouse_id']
 // Filter barang aktif saja
 $only_active = isset($_GET['only_active']) && $_GET['only_active'] == '1';
 
+// New Filters: Brand & Product Type
+$brand_filter = isset($_GET['brand_id']) ? (int)$_GET['brand_id'] : 0;
+$type_filter = isset($_GET['product_type_id']) ? (int)$_GET['product_type_id'] : 0;
+
+// Ambil daftar merek dan tipe produk untuk filter dropdown
+$brands_list = $conn->query("SELECT id, brand_name FROM brands ORDER BY brand_name")->fetch_all(MYSQLI_ASSOC);
+$product_types_list = $conn->query("SELECT id, type_name FROM product_types ORDER BY type_name")->fetch_all(MYSQLI_ASSOC);
+
 // Kueri Kompleks Pengambilan Aktivitas Barang Keluar Dikelompokkan per Produk
 $sql = "
 SELECT 
@@ -62,21 +70,21 @@ LEFT JOIN (
             SELECT d.product_id, DATE(o.created_at) as date, SUM(d.quantity) as qty
             FROM outbound_transactions o
             JOIN outbound_transaction_details d ON o.id = d.transaction_id
-            WHERE o.status = 'Completed' AND o.warehouse_id = ? AND DATE(o.created_at) BETWEEN ? AND ?
+            WHERE o.status != 'Cancelled' AND o.warehouse_id = ? AND DATE(o.created_at) BETWEEN ? AND ?
             GROUP BY d.product_id, DATE(o.created_at)
             
             UNION ALL
             SELECT d.product_id, DATE(b.created_at) as date, SUM(d.quantity) as qty
             FROM borrowed_transactions_detail d
             JOIN borrowed_transactions b ON d.transaction_id = b.id
-            WHERE b.status IN ('Borrowed', 'Returned') AND b.warehouse_id = ? AND DATE(b.created_at) BETWEEN ? AND ?
+            WHERE b.status != 'Cancelled' AND b.warehouse_id = ? AND DATE(b.created_at) BETWEEN ? AND ?
             GROUP BY d.product_id, DATE(b.created_at)
             
             UNION ALL
             SELECT aoi.product_id, DATE(ao.created_at) as date, SUM(aoi.qty_out) as qty
             FROM assembly_outbound_items aoi
             JOIN assembly_outbound ao ON ao.id = aoi.outbound_id
-            WHERE ao.status = 'Completed' AND ao.warehouse_id = ? AND DATE(ao.created_at) BETWEEN ? AND ?
+            WHERE ao.status != 'Cancelled' AND ao.warehouse_id = ? AND DATE(ao.created_at) BETWEEN ? AND ?
             GROUP BY aoi.product_id, DATE(ao.created_at)
             
             UNION ALL
@@ -91,6 +99,8 @@ LEFT JOIN (
     GROUP BY product_id
 ) as daily_out ON p.id = daily_out.product_id
 WHERE p.is_deleted = 0
+" . ($brand_filter > 0 ? " AND p.brand_id = $brand_filter" : "") . "
+" . ($type_filter > 0 ? " AND p.product_type_id = $type_filter" : "") . "
 GROUP BY p.id, p.product_code, p.product_name, t.type_name, p.lead_time_avg, p.lead_time_max, ws.stock, p.minimum_stock_level
 " . ($only_active ? "HAVING sum_qty > 0" : "") . "
 ORDER BY p.product_name ASC
@@ -133,12 +143,26 @@ $stmt->close();
     }
 
     .red-zone {
-        background-color: rgba(255, 99, 132, 0.15) !important;
-        /* Latar merah pastel murni */
+        background-color: #fff8f8 !important; /* Soft premium red tint */
+        border-left: 5px solid #dc3545 !important;
+    }
+
+    .safe-zone {
+        border-left: 5px solid #198754 !important;
     }
 
     .red-zone td {
         background-color: transparent !important;
+    }
+
+    /* High contrast stock cell - specific selector to override transparent bg */
+    .table-rop td.stock-critical {
+        background-color: #721c24 !important; /* Extremely dark red */
+        color: #ffffff !important;
+        font-weight: 800;
+        font-size: 1.1rem;
+        box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+        border: 1px solid #491217 !important;
     }
 
     .status-indicator {
@@ -180,21 +204,43 @@ $stmt->close();
     <div class="card-body">
         <form action="" method="GET" class="row align-items-end g-3">
             <input type="hidden" name="warehouse_id" value="<?= $active_warehouse_id ?>">
-            <div class="col-md-3">
+            <div class="col-md-2">
                  <label class="form-label fw-semibold"><i class="bi bi-calendar3 me-1"></i>Tanggal Awal</label>
                  <input type="date" class="form-control" name="start_date" value="<?= htmlspecialchars($start_date) ?>">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                  <label class="form-label fw-semibold"><i class="bi bi-calendar3-fill me-1"></i>Tanggal Akhir</label>
                  <input type="date" class="form-control" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
             </div>
-            <div class="col-md-3">
-                 <button type="submit" class="btn btn-primary w-100 rounded-pill"><i class="bi bi-funnel me-1"></i>Kalkulasi (<?= $n_days ?> Hari)</button>
+            <div class="col-md-2">
+                 <label class="form-label fw-semibold"><i class="bi bi-tag me-1"></i>Merek</label>
+                 <select class="form-select" name="brand_id">
+                     <option value="0">Semua Merek</option>
+                     <?php foreach ($brands_list as $b): ?>
+                         <option value="<?= $b['id'] ?>" <?= $brand_filter == $b['id'] ? 'selected' : '' ?>><?= htmlspecialchars($b['brand_name']) ?></option>
+                     <?php endforeach; ?>
+                 </select>
             </div>
-            <div class="col-md-3">
-                <div class="form-check form-switch mb-2">
+            <div class="col-md-2">
+                 <label class="form-label fw-semibold"><i class="bi bi-layers me-1"></i>Tipe</label>
+                 <select class="form-select" name="product_type_id">
+                     <option value="0">Semua Tipe</option>
+                     <?php foreach ($product_types_list as $pt): ?>
+                         <option value="<?= $pt['id'] ?>" <?= $type_filter == $pt['id'] ? 'selected' : '' ?>><?= htmlspecialchars($pt['type_name']) ?></option>
+                     <?php endforeach; ?>
+                 </select>
+            </div>
+            <div class="col-md-2">
+                 <button type="submit" class="btn btn-primary w-100 rounded-pill"><i class="bi bi-funnel me-1"></i>Kalkulasi</button>
+            </div>
+            <div class="col-md-2">
+                 <div class="form-check form-switch mb-2">
                     <input class="form-check-input" type="checkbox" id="only_active" name="only_active" value="1" <?= $only_active ? 'checked' : '' ?> onchange="this.form.submit()">
-                    <label class="form-check-label fw-semibold" for="only_active">Hanya barang yang keluar</label>
+                    <label class="form-check-label fw-semibold" for="only_active">Hanya barang keluar</label>
+                </div>
+                <div class="d-grid gap-1">
+                    <a href="#" id="exportExcelBtn" class="btn btn-success btn-sm rounded-pill"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                    <a href="#" id="exportPdfBtn" class="btn btn-danger btn-sm rounded-pill"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
                 </div>
             </div>
         </form>
@@ -206,7 +252,7 @@ $stmt->close();
     <?php foreach ($warehouses_list as $wh): ?>
     <li class="nav-item">
         <a class="nav-link <?= ($active_warehouse_id == $wh['id']) ? 'active fw-bold' : '' ?>" 
-           href="?warehouse_id=<?= $wh['id'] ?>&start_date=<?= $start_date ?>&end_date=<?= $end_date ?>&only_active=<?= $only_active ? '1' : '0' ?>">
+           href="?warehouse_id=<?= $wh['id'] ?>&start_date=<?= $start_date ?>&end_date=<?= $end_date ?>&only_active=<?= $only_active ? '1' : '0' ?>&brand_id=<?= $brand_filter ?>&product_type_id=<?= $type_filter ?>">
             🏢 <?= htmlspecialchars($wh['name']) ?>
         </a>
     </li>
@@ -297,20 +343,24 @@ $stmt->close();
                 
                 // Flag Red Zone jika Stock < ROP (atau sama dengan)
                 const isCritical = p.stock <= Math.ceil(rop);
-                const rowClass = isCritical ? 'red-zone fw-bold' : '';
+                const rowClass = isCritical ? 'red-zone' : 'safe-zone';
+                
                 const statusHtml = isCritical
-                    ? `<span class="badge bg-danger rounded-pill"><i class="bi bi-exclamation-triangle-fill me-1"></i>Reorder!</span>`
-                    : `<span class="badge bg-success rounded-pill px-3">Aman</span>`;
+                    ? `<span class="badge bg-danger rounded-pill shadow-sm"><i class="bi bi-exclamation-triangle-fill me-1"></i>Reorder!</span>`
+                    : `<span class="badge bg-success rounded-pill px-3 shadow-sm"><i class="bi bi-check-circle-fill me-1"></i>Aman</span>`;
 
                 // Formatting Number
                 const fmt = (num) => num.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 const fmt0 = (num) => Math.ceil(num).toLocaleString('id-ID'); // Bulatkan ke atas untuk barang fisik
 
+                // Stok Akhir styling: Use high-contrast class for critical, or bg-dark for normal
+                const stockClass = isCritical ? 'stock-critical' : 'bg-dark text-white';
+                
                 const tr = document.createElement('tr');
                 tr.className = rowClass;
                 tr.innerHTML = `
                 <td class="text-start ps-3">
-                    <div class="fw-bold text-dark">${p.name}</div>
+                    <div class="fw-bold ${isCritical ? 'text-danger' : 'text-dark'}">${p.name}</div>
                     <div class="small text-muted">${p.type}</div>
                 </td>
                 <td class="text-center">
@@ -322,7 +372,7 @@ $stmt->close();
                 <td class="text-center">${fmt(p.stddev)}</td>
                 <td class="text-center bg-light text-primary fw-bold" style="border-left:1px dashed #dee2e6;">${fmt(safetyStock)}</td>
                 <td class="text-center bg-primary bg-opacity-10 text-primary border-0 fs-5">${fmt(rop)}</td>
-                <td class="text-center bg-dark text-white border-0 fs-5 ${p.stock <= 0 ? 'text-danger' : ''}">${p.stock}</td>
+                <td class="text-center ${stockClass} border-0 fs-5">${p.stock}</td>
                 <td class="text-center">${statusHtml}</td>
             `;
                 tbody.appendChild(tr);
@@ -345,5 +395,37 @@ $stmt->close();
 
         // Initial Render
         renderTable();
+
+        // Download Excel Logic
+        const exportBtn = document.getElementById('exportExcelBtn');
+        exportBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const zScore = zScoreSelect.value;
+            const startStr = "<?= $start_date ?>";
+            const endStr = "<?= $end_date ?>";
+            const whId = "<?= $active_warehouse_id ?>";
+            const onlyAct = "<?= $only_active ? '1' : '0' ?>";
+            const brandId = "<?= $brand_filter ?>";
+            const typeId = "<?= $type_filter ?>";
+            
+            const exportUrl = `export_rop_excel.php?warehouse_id=${whId}&start_date=${startStr}&end_date=${endStr}&only_active=${onlyAct}&z_score=${zScore}&brand_id=${brandId}&product_type_id=${typeId}`;
+            window.location.href = exportUrl;
+        });
+
+        // Download PDF Logic
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        exportPdfBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const zScore = zScoreSelect.value;
+            const startStr = "<?= $start_date ?>";
+            const endStr = "<?= $end_date ?>";
+            const whId = "<?= $active_warehouse_id ?>";
+            const onlyAct = "<?= $only_active ? '1' : '0' ?>";
+            const brandId = "<?= $brand_filter ?>";
+            const typeId = "<?= $type_filter ?>";
+            
+            const exportUrl = `export_rop_pdf.php?warehouse_id=${whId}&start_date=${startStr}&end_date=${endStr}&only_active=${onlyAct}&z_score=${zScore}&brand_id=${brandId}&product_type_id=${typeId}`;
+            window.open(exportUrl, '_blank');
+        });
     });
 </script>

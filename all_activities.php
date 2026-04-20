@@ -166,6 +166,51 @@ if (empty($type_filter) || $type_filter == 'transfer') {
   $union_types .= $types;
 }
 
+// Kueri untuk Perakitan (Assembly Outbound)
+if (empty($type_filter) || $type_filter == 'assembly') {
+  $where_clauses = ["1=1"];
+  $params = [];
+  $types = "";
+  if ($active_tab !== 'all') { $where_clauses[] = "ao.warehouse_id = " . (int)$active_tab; }
+  if (!empty($start_date)) { $where_clauses[] = "DATE(ao.created_at) >= ?"; $params[] = $start_date; $types .= "s"; }
+  if (!empty($end_date)) { $where_clauses[] = "DATE(ao.created_at) <= ?"; $params[] = $end_date; $types .= "s"; }
+  if ($product_id > 0) { $where_clauses[] = "aoi.product_id = ?"; $params[] = $product_id; $types .= "i"; }
+
+  $sql_parts[] = "
+    (SELECT 'assembly_out' COLLATE utf8mb4_unicode_ci AS type, ao.id, ao.created_at AS date, p.product_name COLLATE utf8mb4_unicode_ci AS product_name, SUM(aoi.qty_out) AS quantity, ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, ao.project_name COLLATE utf8mb4_unicode_ci AS notes, 
+      'Perakitan (Komponen)' COLLATE utf8mb4_unicode_ci AS party_name 
+    FROM assembly_outbound_items aoi
+    JOIN assembly_outbound ao ON ao.id = aoi.outbound_id
+    JOIN products p ON p.id = aoi.product_id
+    WHERE " . implode(' AND ', $where_clauses) . "
+    GROUP BY ao.id, p.id)";
+  $union_params = array_merge($union_params, $params);
+  $union_types .= $types;
+}
+
+// Kueri untuk Hasil Perakitan (Assembly Inbound)
+if (empty($type_filter) || $type_filter == 'assembly') {
+  $where_clauses = ["1=1"];
+  $params = [];
+  $types = "";
+  if ($active_tab !== 'all') { $where_clauses[] = "ao.warehouse_id = " . (int)$active_tab; }
+  if (!empty($start_date)) { $where_clauses[] = "DATE(ao.created_at) >= ?"; $params[] = $start_date; $types .= "s"; }
+  if (!empty($end_date)) { $where_clauses[] = "DATE(ao.created_at) <= ?"; $params[] = $end_date; $types .= "s"; }
+  if ($product_id > 0) { $where_clauses[] = "p.id = ?"; $params[] = $product_id; $types .= "i"; }
+
+  $sql_parts[] = "
+    (SELECT 'assembly_in' COLLATE utf8mb4_unicode_ci AS type, ao.id, ao.created_at AS date, p.product_name COLLATE utf8mb4_unicode_ci AS product_name, SUM(aor.qty) AS quantity, ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, ao.project_name COLLATE utf8mb4_unicode_ci AS notes, 
+      'Perakitan (Hasil)' COLLATE utf8mb4_unicode_ci AS party_name 
+    FROM assembly_outbound_results aor
+    JOIN assembly_outbound ao ON ao.id = aor.outbound_id
+    JOIN assemblies a ON aor.assembly_id = a.id
+    JOIN products p ON p.id = a.finished_product_id
+    WHERE " . implode(' AND ', $where_clauses) . "
+    GROUP BY ao.id, p.id)";
+  $union_params = array_merge($union_params, $params);
+  $union_types .= $types;
+}
+
 if (empty($sql_parts)) {
   $activities = [];
 } else {
@@ -222,6 +267,7 @@ if (empty($sql_parts)) {
           <option value="outbound" <?= $type_filter == 'outbound' ? 'selected' : '' ?>>Barang Keluar</option>
           <option value="borrow" <?= $type_filter == 'borrow' ? 'selected' : '' ?>>Peminjaman</option>
           <option value="transfer" <?= $type_filter == 'transfer' ? 'selected' : '' ?>>Mutasi Antar Gudang</option>
+          <option value="assembly" <?= $type_filter == 'assembly' ? 'selected' : '' ?>>Perakitan (Assembly)</option>
         </select>
       </div>
       <div class="col-md-4">
@@ -309,6 +355,16 @@ if (empty($sql_parts)) {
                         $badge_class = 'bg-success text-white';
                         $type_text = 'Mutasi Masuk';
                         $detail_page = ' /wms-geo/views/transfer/detail.php';
+                        break;
+                      case 'assembly_out':
+                        $badge_class = 'bg-dark text-white';
+                        $type_text = 'Rakitan (Out)';
+                        $detail_page = ' /wms-geo/views/assembly/detail.php';
+                        break;
+                      case 'assembly_in':
+                        $badge_class = 'bg-info text-white';
+                        $type_text = 'Rakitan (Result)';
+                        $detail_page = ' /wms-geo/views/assembly/detail.php';
                         break;
                     }
                   ?>

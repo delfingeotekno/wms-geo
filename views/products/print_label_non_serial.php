@@ -49,8 +49,8 @@ $pages = array_chunk($total_labels, 21);
         .label-page { 
             width: 210mm; 
             height: 297mm; 
-            padding: 12mm 4mm; /* Penyesuaian margin fisik kertas TJ */
-            margin: 10mm auto; 
+            padding: 10mm 4mm; 
+            margin: 0 auto; 
             background: white;
             box-sizing: border-box;
             page-break-after: always;
@@ -81,7 +81,7 @@ $pages = array_chunk($total_labels, 21);
             text-align: center;
         }
 
-        /* Teks Nama Produk - Dikecilkan kembali */
+        /* Teks Nama Produk - Dikecilkan */
         .product-text { 
             font-size: 8pt; 
             font-weight: 600;
@@ -89,7 +89,7 @@ $pages = array_chunk($total_labels, 21);
             line-height: 1.1;
             width: 100%;
             word-wrap: break-word;
-            margin-bottom: 1mm;
+            margin-bottom: 2mm;
             max-height: 8mm;
             overflow: hidden;
             display: -webkit-box;
@@ -97,15 +97,17 @@ $pages = array_chunk($total_labels, 21);
             -webkit-box-orient: vertical;
         }
 
-        /* Ukuran Barcode - Diperbesar secara visual */
+        /* Ukuran Barcode - Optimal untuk scannability */
         .barcode-img { 
             width: 100%; 
-            height: 18mm; 
-            object-fit: fill; /* Memaksa mengisi area agar lebih tebal */
+            height: 15mm; 
+            object-fit: contain;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: pixelated;
             margin-bottom: 1mm;
         }
 
-        /* Teks Kode Produk - Dikecilkan kembali */
+        /* Teks Kode Produk - Dikecilkan */
         .code-text { 
             font-size: 9pt; 
             font-weight: bold; 
@@ -118,7 +120,7 @@ $pages = array_chunk($total_labels, 21);
         @media print {
             body { background: none; }
             .label-page { margin: 0; border: none; box-shadow: none; }
-            .label-box { border: none; } /* Sembunyikan garis bantu stiker */
+            .label-box { border: none; } 
             @page { 
                 size: A4; 
                 margin: 0; 
