@@ -35,8 +35,32 @@ WHERE td.transaction_id = ?";
 $stmt_details = $conn->prepare($details_query);
 $stmt_details->bind_param("i", $transaction_id);
 $stmt_details->execute();
-$details = $stmt_details->get_result()->fetch_all(MYSQLI_ASSOC);
+$details_raw = $stmt_details->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt_details->close();
+
+// --- LOGIKA PENGELOMPOKAN ITEM (Grouping) ---
+$grouped_details = [];
+foreach ($details_raw as $row) {
+    $key = $row['product_id'];
+    
+    if (!isset($grouped_details[$key])) {
+        $grouped_details[$key] = [
+            'product_name' => $row['product_name'],
+            'product_code' => $row['product_code'],
+            'quantity' => 0,
+            'serial_numbers' => [],
+            'has_serial' => $row['has_serial'],
+        ];
+    }
+    
+    $grouped_details[$key]['quantity'] += $row['quantity'];
+    
+    if ($row['has_serial'] == 1 && !empty($row['serial_number'])) {
+        $grouped_details[$key]['serial_numbers'][] = $row['serial_number'];
+    }
+}
+$details = array_values($grouped_details);
+// --- AKHIR LOGIKA PENGELOMPOKAN ---
 
 // 2. Tentukan label berdasarkan data yang sudah diambil.
 $transaction_label = "No. Transaksi";
@@ -86,7 +110,13 @@ if ($transaction['transaction_type'] === 'RI') {
                 <strong>Tipe Transaksi:</strong><?= htmlspecialchars($transaction['transaction_type']) ?><br>
                 <strong><?= htmlspecialchars($document_label) ?>: </strong><?= htmlspecialchars($transaction['document_number']) ?><br>
                 <strong>Tanggal: </strong><?= date('d-m-Y', strtotime($transaction['transaction_date'])) ?><br>
-                <strong>From: </strong><?= htmlspecialchars($transaction['sender']) ?>
+                <strong>From: </strong><?= htmlspecialchars($transaction['sender']) ?><br>
+                <?php if ($transaction['shipping_cost'] > 0): ?>
+                    <strong>Ongkos Kirim:</strong> IDR <?= number_format($transaction['shipping_cost'], 0, ',', '.') ?><br>
+                <?php endif; ?>
+                <?php if ($transaction['service_fee'] > 0): ?>
+                    <strong>Biaya Jasa + Layanan:</strong> IDR <?= number_format($transaction['service_fee'], 0, ',', '.') ?><br>
+                <?php endif; ?>
             </div>
             <div class="col-md-6">
                 <strong>Dibuat Oleh: </strong><?= htmlspecialchars($transaction['creator_name']) ?><br>
@@ -137,11 +167,18 @@ if ($transaction['transaction_type'] === 'RI') {
                     <?php $no = 1; ?>
                     <?php foreach ($details as $detail): ?>
                         <tr>
-                            <td><?= $no++ ?></td>
+                            <td class="text-center"><?= $no++ ?></td>
                             <td><?= htmlspecialchars($detail['product_code']) ?></td>
                             <td><?= htmlspecialchars($detail['product_name']) ?></td>
-                            <td><?= htmlspecialchars($detail['quantity']) ?></td>
-                            <td><?= $detail['serial_number'] ? htmlspecialchars($detail['serial_number']) : '-' ?></td>
+                            <td class="text-center"><?= htmlspecialchars($detail['quantity']) ?></td>
+                            <td>
+                                <?php if (!empty($detail['serial_numbers'])): ?>
+                                    <div class="small text-muted">S/N:</div>
+                                    <?= htmlspecialchars(implode(", ", $detail['serial_numbers'])) ?>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

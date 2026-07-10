@@ -220,16 +220,16 @@ ADM. Jakarta Utara, DKI Jakarta 14240<br>
                 <td><?= $item['product_name'] ?></td>
                 <td class="text-center"><?= number_format($item['qty']) ?></td>
                 <td class="text-center"><?= strtoupper($item['unit']) ?></td>
-                <td class="text-end">
+                 <td class="text-end">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($item['price'], 0, ',', '.') ?></span>
+                        <span><?= number_format($item['price'], 2, ',', '.') ?></span>
                     </div>
                 </td>
                 <td class="text-end">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($item['qty'] * $item['price'], 0, ',', '.') ?></span>
+                        <span><?= number_format($item['qty'] * $item['price'], 2, ',', '.') ?></span>
                     </div>
                 </td>
             </tr>
@@ -246,7 +246,7 @@ ADM. Jakarta Utara, DKI Jakarta 14240<br>
                 <td class="text-end fw-bold">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($po['total_before_tax'] + $total_discount, 0, ',', '.') ?></span>
+                        <span><?= number_format($po['total_before_tax'] + $total_discount, 2, ',', '.') ?></span>
                     </div>
                 </td>
             </tr>
@@ -255,7 +255,7 @@ ADM. Jakarta Utara, DKI Jakarta 14240<br>
                 <td class="text-end fw-bold text-danger">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($total_discount, 0, ',', '.') ?></span>
+                        <span><?= number_format($total_discount, 2, ',', '.') ?></span>
                     </div>
                 </td>
             </tr>
@@ -264,7 +264,7 @@ ADM. Jakarta Utara, DKI Jakarta 14240<br>
                 <td class="text-end fw-bold">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($po['ppn_amount'], 0, ',', '.') ?></span>
+                        <span><?= number_format($po['ppn_amount'], 2, ',', '.') ?></span>
                     </div>
                 </td>
             </tr>
@@ -273,7 +273,7 @@ ADM. Jakarta Utara, DKI Jakarta 14240<br>
                 <td class="text-end fw-bold" style="font-size: 12px;">
                     <div class="currency-box">
                         <span><?= $po['currency'] ?></span>
-                        <span><?= number_format($po['grand_total'], 0, ',', '.') ?></span>
+                        <span><?= number_format($po['grand_total'], 2, ',', '.') ?></span>
                     </div>
                 </td>
             </tr>

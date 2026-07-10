@@ -18,10 +18,13 @@ try {
         FROM outbound_transaction_details otd
         JOIN outbound_transactions ot ON otd.transaction_id = ot.id
         JOIN products p ON otd.product_id = p.id
-        -- LEFT JOIN ke detail inbound berdasarkan ID transaksi return yang sedang diedit
+        -- LEFT JOIN ke detail inbound berdasarkan ID transaksi return yang sedang diedit dengan perbandingan robust NULL/empty string
         LEFT JOIN inbound_transaction_details itd ON itd.product_id = otd.product_id 
             AND itd.transaction_id = ? 
-            AND (itd.serial_number = otd.serial_number OR (itd.serial_number IS NULL AND otd.serial_number IS NULL))
+            AND (
+                (NULLIF(itd.serial_number, '') = NULLIF(otd.serial_number, ''))
+                OR (NULLIF(itd.serial_number, '') IS NULL AND NULLIF(otd.serial_number, '') IS NULL)
+            )
         WHERE ot.transaction_number = ?
     ";
 

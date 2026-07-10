@@ -29,7 +29,7 @@ $transactions_query = "SELECT
     t.transaction_type, 
     t.transaction_date, 
     t.sender, 
-    t.total_items, 
+    (SELECT COUNT(DISTINCT product_id) FROM inbound_transaction_details WHERE transaction_id = t.id) AS total_items, 
     u.name AS created_by, 
     t.notes,
     w.name AS warehouse_name
@@ -81,6 +81,18 @@ $transactions = $conn->query($transactions_query)->fetch_all(MYSQLI_ASSOC);
         <?php if (isset($_GET['status']) && $_GET['status'] == 'success_inbound'): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 Transaksi barang masuk berhasil disimpan.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['status']) && $_GET['status'] == 'success_return'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                Transaksi return barang masuk berhasil disimpan.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_GET['status']) && $_GET['status'] == 'success_edit_return'): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                Perubahan transaksi return barang masuk berhasil disimpan.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
@@ -137,7 +149,10 @@ $transactions = $conn->query($transactions_query)->fetch_all(MYSQLI_ASSOC);
                                 <td><?= htmlspecialchars($transaction['notes']) ?></td>
                                 <td class="text-nowrap">
                                     <a href="detail.php?id=<?= $transaction['id'] ?>" class="btn btn-info btn-sm text-white me-1" title="Detail"><i class="bi bi-eye"></i></a>
-                                    <a href="edit.php?id=<?= $transaction['id'] ?>" class="btn btn-warning btn-sm me-1" title="Edit"><i class="bi bi-pencil"></i></a>
+                                    <?php 
+                                    $edit_page = ($transaction['transaction_type'] === 'RET') ? 'return_edit.php' : 'edit.php';
+                                    ?>
+                                    <a href="<?= $edit_page ?>?id=<?= $transaction['id'] ?>" class="btn btn-warning btn-sm me-1" title="Edit"><i class="bi bi-pencil"></i></a>
                                     <a href="delete.php?id=<?= $transaction['id'] ?>" class="btn btn-danger btn-sm" title="Hapus" onclick="return confirm('Apakah Anda yakin ingin menghapus transaksi ini? Stok produk akan dikurangi.')"><i class="bi bi-trash"></i></a>
                                 </td>
                             </tr>

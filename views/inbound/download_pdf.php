@@ -377,7 +377,16 @@ $i = 1;
     $this->Cell(63, 6, 'Warehouse', 'BR', 1, 'C'); // Bottom, Right border, pindah baris
     
     // Pastikan ada baris kosong setelah tanda tangan jika catatan mengikuti
-    $this->Ln(2);
+    // Bagian Biaya Tambahan
+    if ($this->transaction['shipping_cost'] > 0) {
+        $this->SetFont('Arial', 'B', 9);
+        $this->Cell(35, 6, 'Ongkos Kirim:', 0, 0, 'L');
+        $this->SetFont('Arial', '', 9);
+        $this->Cell(50, 6, 'IDR ' . number_format($this->transaction['shipping_cost'], 0, ',', '.'), 0, 1, 'L');
+        $this->Ln(1);
+    }
+
+    $this->Ln(1);
     
     // Bagian catatan yang baru
     $x = $this->GetX();

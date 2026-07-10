@@ -77,8 +77,9 @@ if ($product_id > 0) {
     $cond_ao = $warehouse_filter > 0 ? " AND ao.warehouse_id = $warehouse_filter" : "";
     $sql_discrepancy[] = "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ?" . $cond_ao;
     $p_disc[] = $product_id; $t_disc .= "i";
-    // Assembly In (Finished Products)
-    $sql_discrepancy[] = "SELECT SUM(ao.total_units) as q_in, 0 as q_out FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = ? AND ao.status = 'Completed'" . $cond_ao;
+    // Assembly In (Finished Products & Returns)
+    $cond_ah = $warehouse_filter > 0 ? " AND ah.warehouse_id = $warehouse_filter" : "";
+    $sql_discrepancy[] = "SELECT SUM(ah.quantity) as q_in, 0 as q_out FROM assembly_inbound_history ah WHERE ah.product_id = ?" . $cond_ah;
     $p_disc[] = $product_id; $t_disc .= "i";
     // Transfer Keluar
     $cond_tr_out = $warehouse_filter > 0 ? " AND tr.source_warehouse_id = $warehouse_filter" : "";
@@ -121,10 +122,10 @@ if ($product_id > 0) {
         $bal_params = [];
         $bal_types = "";
 
-        $bal_sql_parts[] = "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0 AND DATE(it.created_at) < ?" . $cond_it;
+        $bal_sql_parts[] = "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0 AND DATE(itd.created_at) < ?" . $cond_it;
         $bal_params[] = $product_id; $bal_params[] = $start_date; $bal_types .= "is";
         
-        $bal_sql_parts[] = "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0 AND DATE(ot.created_at) < ?" . $cond_ot;
+        $bal_sql_parts[] = "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0 AND DATE(otd.created_at) < ?" . $cond_ot;
         $bal_params[] = $product_id; $bal_params[] = $start_date; $bal_types .= "is";
         
         $bal_sql_parts[] = "SELECT 0 as q_in, SUM(btd.quantity) as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND bt.is_deleted = 0 AND DATE(bt.created_at) < ?" . $cond_bt;
@@ -136,7 +137,7 @@ if ($product_id > 0) {
         $bal_sql_parts[] = "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ? AND DATE(ao.created_at) < ?" . $cond_ao;
         $bal_params[] = $product_id; $bal_params[] = $start_date; $bal_types .= "is";
 
-        $bal_sql_parts[] = "SELECT SUM(ao.total_units) as q_in, 0 as q_out FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = ? AND ao.status = 'Completed' AND DATE(ao.created_at) < ?" . $cond_ao;
+        $bal_sql_parts[] = "SELECT SUM(ah.quantity) as q_in, 0 as q_out FROM assembly_inbound_history ah WHERE ah.product_id = ? AND DATE(ah.created_at) < ?" . $cond_ah;
         $bal_params[] = $product_id; $bal_params[] = $start_date; $bal_types .= "is";
 
         $bal_sql_parts[] = "SELECT 0 as q_in, SUM(ti.quantity) as q_out FROM transfer_items ti JOIN transfers tr ON tr.id = ti.transfer_id WHERE ti.product_id = ? AND DATE(tr.created_at) < ?" . $cond_tr_out;
@@ -165,10 +166,10 @@ if ($product_id > 0) {
     if (empty($type_filter) || $type_filter == 'Masuk') {
         $where = "WHERE itd.product_id = ? AND it.is_deleted = 0" . $cond_it;
         $p = [$product_id]; $t = "i";
-        if (!empty($start_date)) { $where .= " AND DATE(it.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
-        if (!empty($end_date))   { $where .= " AND DATE(it.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
+        if (!empty($start_date)) { $where .= " AND DATE(itd.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
+        if (!empty($end_date))   { $where .= " AND DATE(itd.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
 
-        $sql_parts[] = "(SELECT it.created_at AS date, 'Masuk' COLLATE utf8mb4_unicode_ci AS type, it.transaction_number COLLATE utf8mb4_unicode_ci AS transaction_number, it.id AS transaction_id, SUM(itd.quantity) as quantity, it.sender COLLATE utf8mb4_unicode_ci AS counterparty, SUM(itd.quantity) AS quantity_in, 0 AS quantity_out 
+        $sql_parts[] = "(SELECT MAX(itd.created_at) AS date, 'Masuk' COLLATE utf8mb4_unicode_ci AS type, it.transaction_number COLLATE utf8mb4_unicode_ci AS transaction_number, it.id AS transaction_id, SUM(itd.quantity) as quantity, it.sender COLLATE utf8mb4_unicode_ci AS counterparty, SUM(itd.quantity) AS quantity_in, 0 AS quantity_out 
                         FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id $where GROUP BY it.id)";
         $all_params = array_merge($all_params, $p); $all_types .= $t;
     }
@@ -177,10 +178,10 @@ if ($product_id > 0) {
     if (empty($type_filter) || $type_filter == 'Keluar') {
         $where = "WHERE otd.product_id = ? AND ot.is_deleted = 0" . $cond_ot;
         $p = [$product_id]; $t = "i";
-        if (!empty($start_date)) { $where .= " AND DATE(ot.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
-        if (!empty($end_date))   { $where .= " AND DATE(ot.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
+        if (!empty($start_date)) { $where .= " AND DATE(otd.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
+        if (!empty($end_date))   { $where .= " AND DATE(otd.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
 
-        $sql_parts[] = "(SELECT ot.created_at AS date, 'Keluar' COLLATE utf8mb4_unicode_ci AS type, ot.transaction_number COLLATE utf8mb4_unicode_ci AS transaction_number, ot.id AS transaction_id, SUM(otd.quantity) as quantity, ot.recipient COLLATE utf8mb4_unicode_ci AS counterparty, 0 AS quantity_in, SUM(otd.quantity) AS quantity_out 
+        $sql_parts[] = "(SELECT MAX(otd.created_at) AS date, 'Keluar' COLLATE utf8mb4_unicode_ci AS type, ot.transaction_number COLLATE utf8mb4_unicode_ci AS transaction_number, ot.id AS transaction_id, SUM(otd.quantity) as quantity, ot.recipient COLLATE utf8mb4_unicode_ci AS counterparty, 0 AS quantity_in, SUM(otd.quantity) AS quantity_out 
                         FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id $where GROUP BY ot.id)";
         $all_params = array_merge($all_params, $p); $all_types .= $t;
     }
@@ -223,16 +224,24 @@ if ($product_id > 0) {
         $all_params = array_merge($all_params, $p_ao); $all_types .= $t_ao;
     }
 
-    // --- 4b. Masuk (Hasil Rakit) ---
+    // --- 4b. Masuk (Hasil Rakit & Return Komponen) ---
     if (empty($type_filter) || $type_filter == 'Masuk' || $type_filter == 'Perakitan') {
-        $where_ai = "WHERE a.finished_product_id = ? AND ao.status = 'Completed'" . $cond_ao;
-        $p_ai = [$product_id]; $t_ai = "i";
-        if (!empty($start_date)) { $where_ai .= " AND DATE(ao.created_at) >= ?"; $p_ai[] = $start_date; $t_ai .= "s"; }
-        if (!empty($end_date))   { $where_ai .= " AND DATE(ao.created_at) <= ?"; $p_ai[] = $end_date; $t_ai .= "s"; }
+        $where_ah = "WHERE ah.product_id = ?" . $cond_ah;
+        $p_ah = [$product_id]; $t_ah = "i";
+        if (!empty($start_date)) { $where_ah .= " AND DATE(ah.created_at) >= ?"; $p_ah[] = $start_date; $t_ah .= "s"; }
+        if (!empty($end_date))   { $where_ah .= " AND DATE(ah.created_at) <= ?"; $p_ah[] = $end_date; $t_ah .= "s"; }
 
-        $sql_parts[] = "(SELECT ao.created_at AS date, 'Masuk (Perakitan)' COLLATE utf8mb4_unicode_ci AS type, ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, ao.id AS transaction_id, SUM(ao.total_units) AS quantity, ao.project_name COLLATE utf8mb4_unicode_ci AS counterparty, SUM(ao.total_units) AS quantity_in, 0 AS quantity_out 
-                        FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id $where_ai GROUP BY ao.id)";
-        $all_params = array_merge($all_params, $p_ai); $all_types .= $t_ai;
+        $sql_parts[] = "(SELECT MAX(ah.created_at) AS date, 
+                         IF(ah.type='Finished Product', 'Masuk (Hasil Rakit)', 'Masuk (Komponen Kembali)') COLLATE utf8mb4_unicode_ci AS type, 
+                         ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, 
+                         ao.id AS transaction_id, 
+                         SUM(ah.quantity) AS quantity, 
+                         ao.project_name COLLATE utf8mb4_unicode_ci AS counterparty, 
+                         SUM(ah.quantity) AS quantity_in, 0 AS quantity_out 
+                        FROM assembly_inbound_history ah 
+                        JOIN assembly_outbound ao ON ao.id = ah.outbound_id $where_ah 
+                        GROUP BY ah.outbound_id, ah.type)";
+        $all_params = array_merge($all_params, $p_ah); $all_types .= $t_ah;
     }
 
     // 5. Transfer (Mutasi Antar Gudang)
@@ -298,7 +307,7 @@ if ($product_id > 0) {
                     UNION ALL
                     SELECT created_at as d, quantity as quantity_in FROM stock_adjustments WHERE product_id = ? AND type = 'Masuk'" . $cond_adj . "
                     UNION ALL
-                    SELECT ao.created_at as d, ao.total_units as quantity_in FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = ? AND ao.status = 'Completed'" . $cond_ao . "
+                    SELECT ah.created_at as d, ah.quantity as quantity_in FROM assembly_inbound_history ah WHERE ah.product_id = ?" . $cond_ah . "
                 ) as all_in ORDER BY d ASC LIMIT 1";
             $stmt_f = $conn->prepare($sql_first);
             $stmt_f->bind_param("iii", $product_id, $product_id, $product_id);
@@ -319,6 +328,47 @@ if ($product_id > 0) {
 
         // Balik urutan menjadi DESC untuk tampilan
         $history_records = array_reverse($history_records);
+    }
+
+    // --- 4. QUERY PO APPROVED YANG BELUM SELESAI RI ---
+    if (empty($type_filter) || $type_filter == 'Masuk' || $type_filter == 'PO') {
+        $po_sql = "SELECT 
+                        po.po_date AS date, 
+                        'PO (Menunggu RI)' COLLATE utf8mb4_unicode_ci AS type,
+                        po.po_number COLLATE utf8mb4_unicode_ci AS transaction_number,
+                        po.id AS transaction_id,
+                        (pi.qty - pi.received_quantity) AS quantity,
+                        v.vendor_name COLLATE utf8mb4_unicode_ci AS counterparty,
+                        (pi.qty - pi.received_quantity) AS quantity_in,
+                        0 AS quantity_out
+                    FROM po_items pi
+                    JOIN purchase_orders po ON po.id = pi.po_id
+                    LEFT JOIN vendors v ON po.vendor_id = v.id
+                    WHERE pi.product_id = ?
+                    AND po.status = 'Completed'
+                    AND pi.qty > pi.received_quantity";
+        $po_params = [$product_id]; $po_types = "i";
+        if (!empty($start_date)) { $po_sql .= " AND DATE(po.po_date) >= ?"; $po_params[] = $start_date; $po_types .= "s"; }
+        if (!empty($end_date))   { $po_sql .= " AND DATE(po.po_date) <= ?"; $po_params[] = $end_date; $po_types .= "s"; }
+        $po_sql .= " ORDER BY po.po_date DESC";
+
+        $stmt_po = $conn->prepare($po_sql);
+        if (!empty($po_types)) {
+            $stmt_po->bind_param($po_types, ...$po_params);
+        }
+        $stmt_po->execute();
+        $po_records = $stmt_po->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt_po->close();
+
+        // Tandai record PO sebagai pending (tidak masuk running balance)
+        foreach ($po_records as &$po_rec) {
+            $po_rec['is_po_pending'] = true;
+            $po_rec['running_balance'] = '-';
+        }
+        unset($po_rec);
+
+        // Gabungkan ke awal array (tampil di atas karena sudah DESC)
+        $history_records = array_merge($po_records, $history_records);
     }
 }
 
@@ -369,6 +419,7 @@ if ($product_id > 0) {
                         <option value="">-- Semua Tipe --</option>
                         <option value="Masuk" <?= $type_filter == 'Masuk' ? 'selected' : '' ?>>Masuk</option>
                         <option value="Keluar" <?= $type_filter == 'Keluar' ? 'selected' : '' ?>>Keluar</option>
+                        <option value="PO" <?= $type_filter == 'PO' ? 'selected' : '' ?>>PO (Menunggu RI)</option>
                         <option value="Peminjaman" <?= $type_filter == 'Peminjaman' ? 'selected' : '' ?>>Peminjaman</option>
                         <option value="Perakitan" <?= $type_filter == 'Perakitan' ? 'selected' : '' ?>>Perakitan</option>
                         <option value="Mutasi" <?= $type_filter == 'Mutasi' ? 'selected' : '' ?>>Mutasi Antar Gudang</option>
@@ -449,17 +500,20 @@ if ($product_id > 0) {
                         <tbody>
                             <?php foreach ($history_records as $record): ?>
                                 <?php
+                                    $is_po_pending = !empty($record['is_po_pending']);
                                     $badge = [
                                         'Masuk'=>'success', 
                                         'Keluar'=>'danger', 
                                         'Peminjaman'=>'info text-dark',
                                         'Masuk (Pinjaman Kembali)'=>'success',
                                         'Keluar (Perakitan)'=>'warning text-dark',
-                                        'Masuk (Perakitan)'=>'primary',
+                                        'Masuk (Hasil Rakit)'=>'primary',
+                                        'Masuk (Komponen Kembali)'=>'info text-dark',
                                         'Masuk (Penyesuaian)'=>'info',
                                         'Keluar (Penyesuaian)'=>'secondary',
                                         'Masuk (Mutasi)'=>'success text-white',
-                                        'Keluar (Mutasi)'=>'danger'
+                                        'Keluar (Mutasi)'=>'danger',
+                                        'PO (Menunggu RI)'=>'warning text-dark'
                                     ][$record['type']] ?? 'secondary';
 
                                     $path = 'inbound';
@@ -467,12 +521,17 @@ if ($product_id > 0) {
                                     if ($record['type'] == 'Peminjaman') $path = 'borrow';
                                     if (strpos($record['type'], 'Perakitan') !== false) $path = 'assembly';
                                     if (strpos($record['type'], 'Mutasi') !== false) $path = 'transfer';
+                                    if ($is_po_pending) $path = 'po';
                                 ?>
-                                <tr>
+                                <tr class="<?= $is_po_pending ? 'table-warning bg-opacity-25' : '' ?>" <?= $is_po_pending ? 'style="opacity: 0.75; font-style: italic;"' : '' ?>>
                                     <td class="small"><?= date_indo($record['date']) ?></td>
                                     <td><span class="badge bg-<?= $badge ?>"><?= $record['type'] ?></span></td>
                                     <td class="fw-bold">
-                                        <?php if ($record['transaction_number'] != '-'): ?>
+                                        <?php if ($is_po_pending): ?>
+                                            <a href="/wms-geo/views/po/detail.php?id=<?= $record['transaction_id'] ?>">
+                                                <?= htmlspecialchars($record['transaction_number']) ?>
+                                            </a>
+                                        <?php elseif ($record['transaction_number'] != '-'): ?>
                                             <a href="/wms-geo/views/<?= $path ?>/detail.php?id=<?= $record['transaction_id'] ?>">
                                                 <?= htmlspecialchars($record['transaction_number']) ?>
                                             </a>
@@ -480,12 +539,19 @@ if ($product_id > 0) {
                                             -
                                         <?php endif; ?>
                                     </td>
+                                    <?php if ($is_po_pending): ?>
+                                    <td class="text-warning fw-bold">
+                                        <i class="bi bi-hourglass-split me-1"></i>+<?= number_format($record['quantity'], 0, ',', '.') ?>
+                                    </td>
+                                    <td class="text-muted">-</td>
+                                    <?php else: ?>
                                     <td class="<?= ($record['quantity_in'] > 0) ? 'text-success' : 'text-danger' ?> fw-bold">
                                         <?= ($record['quantity_in'] > 0 ? '+' : '-') . number_format($record['quantity'], 0, ',', '.') ?>
                                     </td>
                                     <td class="fw-bold text-dark">
                                         <?= number_format($record['running_balance'], 0, ',', '.') ?>
                                     </td>
+                                    <?php endif; ?>
                                     <td><?= htmlspecialchars($record['counterparty'] ?? '-') ?></td> 
                                 </tr>
                             <?php endforeach; ?>
@@ -495,7 +561,7 @@ if ($product_id > 0) {
             </div>
         </div>
     <?php endif; ?>
-    <a href="/wms-geo/views/products/index.php" class="btn btn-secondary mt-3">Kembali</a>
+    <a href="/wms-geo/views/products/index.php<?= $warehouse_filter > 0 ? '?tab=' . $warehouse_filter : '' ?>" class="btn btn-secondary mt-3">Kembali</a>
 </div>
 
 <?php include 'includes/footer.php'; ?>

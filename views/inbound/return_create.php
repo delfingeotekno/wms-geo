@@ -38,7 +38,7 @@ function generateTransactionNumber($conn, $transaction_type, $warehouse_id) {
     // Periksa tabel inbound_transactions untuk nomor terakhir
     $sql = "SELECT transaction_number FROM inbound_transactions WHERE transaction_number LIKE ? ORDER BY id DESC LIMIT 1";
     // Cari yang berawalan angka (001, 002, dst) dan diikuti dengan prefix/lokasi/bulan/tahun
-    $search_prefix = "%/" . $prefix_type . "/{$location_code}/{$roman_month}/{$year}"; 
+    $search_prefix = "%/" . $prefix_type . "/{$location_code}/%/%"; 
     
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $search_prefix);
@@ -163,6 +163,33 @@ foreach ($items as $item) {
                     
                     if (!$stmt_ser->execute()) {
                         throw new Exception("Gagal memperbarui data serial number: " . $serial_number);
+                    }
+                    
+                    if ($stmt_ser->affected_rows === 0) {
+                        // Cek apakah serial number ada di database
+                        $stmt_chk = $conn->prepare("SELECT id FROM serial_numbers WHERE serial_number = ? AND product_id = ?");
+                        $stmt_chk->bind_param("si", $serial_number, $product_id);
+                        $stmt_chk->execute();
+                        $res_chk = $stmt_chk->get_result();
+                        
+                        if ($res_chk->num_rows === 0) {
+                            // Sisipkan baru jika belum terdaftar
+                            $stmt_ins = $conn->prepare("INSERT INTO serial_numbers (product_id, warehouse_id, serial_number, status, last_transaction_id, last_transaction_type, is_deleted, created_at, updated_at) VALUES (?, ?, ?, 'Tersedia', ?, 'RET', 0, NOW(), NOW())");
+                            $stmt_ins->bind_param("iisi", $product_id, $warehouse_id, $serial_number, $transaction_id);
+                            if (!$stmt_ins->execute()) {
+                                throw new Exception("Gagal menyimpan data serial number baru: " . $serial_number);
+                            }
+                            $stmt_ins->close();
+                        } else {
+                            // Re-aktifkan dan hubungkan ke transaksi return ini
+                            $stmt_reactivate = $conn->prepare("UPDATE serial_numbers SET status = 'Tersedia', warehouse_id = ?, is_deleted = 0, last_transaction_id = ?, last_transaction_type = 'RET', updated_at = NOW() WHERE serial_number = ? AND product_id = ?");
+                            $stmt_reactivate->bind_param("iisi", $warehouse_id, $transaction_id, $serial_number, $product_id);
+                            if (!$stmt_reactivate->execute()) {
+                                throw new Exception("Gagal mengaktifkan kembali data serial number: " . $serial_number);
+                            }
+                            $stmt_reactivate->close();
+                        }
+                        $stmt_chk->close();
                     }
                     $stmt_ser->close();
                 }

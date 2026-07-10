@@ -133,9 +133,13 @@ if ($_SESSION['role'] === 'production') {
             </div>
             <div class="modal-body">
                 <p id="serialModalProductName" class="fw-bold mb-3"></p>
+                <div class="input-group mb-2">
+                    <span class="input-group-text bg-primary text-white"><i class="bi bi-upc-scan"></i></span>
+                    <input type="text" id="serialScannerInput" class="form-control border-primary" placeholder="Scan Barcode S/N disini lalu tekan Enter..." autofocus>
+                </div>
                 <div class="input-group mb-3">
                     <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" id="serialSearchInput" class="form-control" placeholder="Cari S/N...">
+                    <input type="text" id="serialSearchInput" class="form-control" placeholder="Cari S/N manual...">
                 </div>
                 <div id="serialCheckboxesContainer" class="list-group" style="max-height: 300px; overflow-y: auto;">
                     <div class="text-center py-4 text-muted" id="serialLoadingSpinner">
@@ -303,7 +307,7 @@ function addOrUpdateRow(id, name, stock, qty, isTemplate, isReturnable = 0, hasS
             <td><span class="badge ${badgeClass}">${stock}</span></td>
             <td>
                 <input type="number" name="out_qty[]" class="form-control actual-qty" value="${qty}" min="1" 
-                data-std="${qty}" oninput="handleQtyChange(this)" ${hasSerial == 1 ? 'readonly' : ''}>
+                data-std="${qty}" oninput="handleQtyChange(this)" ${(hasSerial == 1 && isTemplate) ? 'readonly' : ''}>
             </td>
             <td class="text-center">
                 <button type="button" class="btn btn-link text-danger p-0" onclick="removeRow(this)">
@@ -318,7 +322,12 @@ function addOrUpdateRow(id, name, stock, qty, isTemplate, isReturnable = 0, hasS
 function handleQtyChange(input) {
     let row = $(input).closest('tr');
     if (row.data('serial') == 1) {
-        // Jika berserial, reset pilihan SN jika qty berubah (tapi di sini readonly)
+        // Jika berserial, reset pilihan SN jika qty berubah
+        row.find('.selected-serials-tags').html('<span class="text-warning">Jumlah berubah, pilih S/N kembali!</span>');
+        row.find('.serial-ids-input').val('');
+        let rowId = row.data('rowid');
+        delete productSerials[rowId];
+        row.find('.btn-text').text('Pilih S/N');
     }
     updateSubmitButton();
 }
@@ -436,6 +445,44 @@ $('#serialSearchInput').on('input', function() {
             $(this).removeClass('d-flex').addClass('d-none');
         }
     });
+});
+
+$('#serialScannerInput').on('keypress', function(e) {
+    if (e.which == 13) { // Enter key
+        e.preventDefault();
+        let scanned = $(this).val().trim();
+        if (scanned) {
+            let checkbox = $(`.serial-checkbox[value="${scanned}"]`);
+            if (checkbox.length) {
+                if (!checkbox.prop('checked')) {
+                    let required = parseInt($('#requiredSerialCount').text());
+                    let current = $('.serial-checkbox:checked').length;
+                    
+                    if (current < required) {
+                        checkbox.prop('checked', true).trigger('change');
+                        
+                        let item = checkbox.closest('.list-group-item');
+                        item.addClass('bg-success text-white');
+                        setTimeout(() => item.removeClass('bg-success text-white'), 1000);
+                        
+                        let container = $('#serialCheckboxesContainer');
+                        container.scrollTop(
+                            container.scrollTop() + item.position().top - container.height() / 2 + item.height() / 2
+                        );
+                    } else {
+                        alert("Jumlah Serial Number sudah terpenuhi!");
+                    }
+                } else {
+                    // Jika discan lagi dan sudah checked, kita bisa biarkan saja atau uncheck. 
+                    // Lebih baik alert saja.
+                    alert("Serial Number sudah dipilih!");
+                }
+            } else {
+                alert("Serial Number tidak ditemukan atau tidak tersedia!");
+            }
+        }
+        $(this).val(''); // Clear input
+    }
 });
 
 $('#confirmSerialBtn').click(function() {

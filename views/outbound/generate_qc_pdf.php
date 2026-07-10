@@ -113,13 +113,13 @@ $pdf->SetXY(150, $currentY + 5);
 $pdf->Cell(25, 19, '', 'LR', 0); $pdf->Cell(25, 19, '', 'LR', 1);
 $pdf->SetXY(150, $currentY + 24);
 $pdf->SetFont('Arial', '', 7);
-$pdf->Cell(25, 8, '[ ' . $nama_pemeriksa . ' ]', 'BLR', 0, 'C'); 
-$pdf->Cell(25, 8, '[ WINDA & MERI M ]', 'BLR', 1, 'C');
+$pdf->Cell(25, 8, '', 'BLR', 0, 'C'); 
+$pdf->Cell(25, 8, '', 'BLR', 1, 'C');
 
 $pdf->SetXY(10, $currentY + 8);
 $pdf->SetFont('Arial', 'B', 8);
 $pdf->Cell(20, 8, ' CLIENT', 1, 0);
-$pdf->SetFont('Arial', '', 8);
+$pdf->SetFont('Arial', '', 8);         
 $pdf->Cell(120, 8, ' ' . ($transaction['recipient'] ?: '-'), 1, 1);
 
 $pdf->SetFont('Arial', 'B', 8);

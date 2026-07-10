@@ -33,11 +33,11 @@ if ($warehouse_id != 'all' && $warehouse_id > 0) {
 }
 
 // Persiapkan kriteria tanggal untuk RANGE
-$date_it = $date_ret = $date_ao = $date_adj_m = "";
+$date_it = $date_ret = $date_ao = $date_adj_m = $date_ah = "";
 $date_ot = $date_aoi = $date_adj_k = $date_bt = "";
 
 // Persiapkan kriteria tanggal AFTER end_date
-$after_it = $after_ret = $after_ao = $after_adj_m = "";
+$after_it = $after_ret = $after_ao = $after_adj_m = $after_ah = "";
 $after_ot = $after_aoi = $after_adj_k = $after_bt = "";
 
 if (!empty($start_date)) {
@@ -50,6 +50,7 @@ if (!empty($start_date)) {
     $date_aoi .= " AND DATE(ao.created_at) >= '$s'";
     $date_adj_k .= " AND DATE(created_at) >= '$s'";
     $date_bt .= " AND DATE(bt.created_at) >= '$s'";
+    $date_ah .= " AND DATE(ah.created_at) >= '$s'";
 }
 
 if (!empty($end_date)) {
@@ -71,6 +72,7 @@ if (!empty($end_date)) {
     $after_aoi = " AND DATE(ao.created_at) > '$e'";
     $after_adj_k = " AND DATE(created_at) > '$e'";
     $after_bt = " AND DATE(bt.created_at) > '$e'";
+    $after_ah = " AND DATE(ah.created_at) > '$e'";
 }
 
 $sql_p = "SELECT p.id, p.product_code, p.product_name, b.brand_name, 
@@ -143,7 +145,7 @@ $wh_cond_it = ($warehouse_id !== 'all' ? " AND it.warehouse_id=".(int)$warehouse
 $wh_cond_ot = ($warehouse_id !== 'all' ? " AND ot.warehouse_id=".(int)$warehouse_id : "");
 $wh_cond_bt = ($warehouse_id !== 'all' ? " AND bt.warehouse_id=".(int)$warehouse_id : "");
 $wh_cond_adj = ($warehouse_id !== 'all' ? " AND warehouse_id=".(int)$warehouse_id : "");
-// Note: assembly_outbound doesn't track warehouse_id effectively, but we'll assume it's correctly handled via tenant or generally ignored if not needed. We'll omit WH filter for assembly as a fallback.
+$wh_cond_ah = ($warehouse_id !== 'all' ? " AND ah.warehouse_id=".(int)$warehouse_id : "");
 
 while ($row = $res_p->fetch_assoc()) {
     $pid = $row['id'];
@@ -152,7 +154,7 @@ while ($row = $res_p->fetch_assoc()) {
     $q_masuk = "SELECT 
         (SELECT COALESCE(SUM(itd.quantity), 0) FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = $pid AND it.is_deleted = 0 $wh_cond_it $date_it) +
         (SELECT COALESCE(SUM(btd.quantity), 0) FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = $pid AND bt.is_deleted = 0 $wh_cond_bt AND btd.return_date IS NOT NULL $date_ret) +
-        (SELECT COALESCE(SUM(ao.total_units), 0) FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = $pid AND ao.status = 'Completed' $date_ao) +
+        (SELECT COALESCE(SUM(ah.quantity), 0) FROM assembly_inbound_history ah WHERE ah.product_id = $pid $wh_cond_ah $date_ah) +
         (SELECT COALESCE(SUM(quantity), 0) FROM stock_adjustments WHERE product_id = $pid AND type = 'Masuk' $wh_cond_adj $date_adj_m) AS total";
     $masuk = (int)$conn->query($q_masuk)->fetch_assoc()['total'];
     
@@ -174,7 +176,7 @@ while ($row = $res_p->fetch_assoc()) {
         $q_after_m = "SELECT 
             (SELECT COALESCE(SUM(itd.quantity), 0) FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = $pid AND it.is_deleted = 0 $wh_cond_it $after_it) +
             (SELECT COALESCE(SUM(btd.quantity), 0) FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = $pid AND bt.is_deleted = 0 $wh_cond_bt AND btd.return_date IS NOT NULL $after_ret) +
-            (SELECT COALESCE(SUM(ao.total_units), 0) FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = $pid AND ao.status = 'Completed' $after_ao) +
+            (SELECT COALESCE(SUM(ah.quantity), 0) FROM assembly_inbound_history ah WHERE ah.product_id = $pid $wh_cond_ah $after_ah) +
             (SELECT COALESCE(SUM(quantity), 0) FROM stock_adjustments WHERE product_id = $pid AND type = 'Masuk' $wh_cond_adj $after_adj_m) AS total";
         $after_masuk = (int)$conn->query($q_after_m)->fetch_assoc()['total'];
 

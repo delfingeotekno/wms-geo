@@ -11,7 +11,9 @@ $sql = "SELECT
             pi.subtotal,
             p.product_name, 
             p.product_code, 
-            p.has_serial 
+            p.has_serial,
+            po.shipping_cost,
+            po.service_fee
         FROM po_items pi 
         JOIN products p ON pi.product_id = p.id 
         JOIN purchase_orders po ON pi.po_id = po.id

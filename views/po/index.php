@@ -7,9 +7,13 @@ if (!in_array($_SESSION['role'], ['admin', 'staff', 'procurement'])) {
     exit();
 }
 
-// Logika Pencarian
+// Logika Pencarian & Filter
 $user_role = $_SESSION['role'] ?? 'staff';
 $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : '';
+$filter_status_po = isset($_GET['status_po']) ? $_GET['status_po'] : '';
+$filter_status_ri = isset($_GET['status_ri']) ? $_GET['status_ri'] : '';
+$filter_date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$filter_date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
 ?>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
@@ -118,7 +122,7 @@ $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : 
     </div>
 
     <div class="col-md-6 search-container">
-        <form action="" method="GET">
+        <form action="" method="GET" id="filterForm">
             <div class="input-group shadow-sm">
                 <span class="input-group-text bg-white border-0 ps-3">
                     <i class="bi bi-search text-muted"></i>
@@ -126,12 +130,45 @@ $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : 
                 <input type="text" name="search" class="form-control search-input py-2" 
                         placeholder="Cari nomor PO atau nama vendor..." 
                         value="<?= htmlspecialchars($search) ?>">
-                <?php if($search !== ''): ?>
-                    <a href="index.php" class="btn btn-link text-decoration-none text-muted border-0">
-                        <i class="bi bi-x-circle-fill"></i>
-                    </a>
-                <?php endif; ?>
                 <button class="btn btn-primary px-4 ms-2" type="submit">Cari</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body py-3">
+        <form action="" method="GET" class="row g-2 align-items-end">
+            <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
+            <div class="col-md-2">
+                <label class="form-label small text-muted fw-bold mb-1">Status PO</label>
+                <select name="status_po" class="form-select form-select-sm">
+                    <option value="">Semua Status</option>
+                    <option value="Pending" <?= $filter_status_po == 'Pending' ? 'selected' : '' ?>>Pending</option>
+                    <option value="Completed" <?= $filter_status_po == 'Completed' ? 'selected' : '' ?>>Completed</option>
+                    <option value="Cancelled" <?= $filter_status_po == 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted fw-bold mb-1">Status RI</label>
+                <select name="status_ri" class="form-select form-select-sm">
+                    <option value="">Semua</option>
+                    <option value="sudah" <?= $filter_status_ri == 'sudah' ? 'selected' : '' ?>>RI Dibuat</option>
+                    <option value="belum" <?= $filter_status_ri == 'belum' ? 'selected' : '' ?>>Belum RI</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted fw-bold mb-1">Dari Tanggal</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="<?= htmlspecialchars($filter_date_from) ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted fw-bold mb-1">Sampai Tanggal</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="<?= htmlspecialchars($filter_date_to) ?>">
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-funnel me-1"></i>Filter</button>
+                <a href="index.php" class="btn btn-outline-secondary btn-sm px-3"><i class="bi bi-x-lg me-1"></i>Reset</a>
+                <a href="export_pdf.php?search=<?= urlencode($search) ?>&status_po=<?= urlencode($filter_status_po) ?>&status_ri=<?= urlencode($filter_status_ri) ?>&date_from=<?= urlencode($filter_date_from) ?>&date_to=<?= urlencode($filter_date_to) ?>" target="_blank" class="btn btn-outline-danger btn-sm px-3" title="Unduh PDF"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
             </div>
         </form>
     </div>
@@ -163,15 +200,33 @@ $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : 
                             WHERE 1=1";
 
                     if ($search !== '') {
-                        // Menambahkan filter untuk vendor_name ATAU po_number
                         $sql .= " AND (v.vendor_name LIKE '%$search%' OR po.po_number LIKE '%$search%')";
                     }
-                    
+                    if ($filter_status_po !== '') {
+                        $sql .= " AND po.status = '" . $conn->real_escape_string($filter_status_po) . "'";
+                    }
+                    if ($filter_date_from !== '') {
+                        $sql .= " AND po.po_date >= '" . $conn->real_escape_string($filter_date_from) . "'";
+                    }
+                    if ($filter_date_to !== '') {
+                        $sql .= " AND po.po_date <= '" . $conn->real_escape_string($filter_date_to) . "'";
+                    }
+
                     $sql .= " ORDER BY po.id DESC";
                     $result = $conn->query($sql);
 
-                    if ($result && $result->num_rows > 0):
-                        while($row = $result->fetch_assoc()):
+                    // Filter Status RI di PHP (karena subquery HAVING tidak efisien)
+                    $filtered_rows = [];
+                    if ($result && $result->num_rows > 0) {
+                        while ($r = $result->fetch_assoc()) {
+                            if ($filter_status_ri === 'sudah' && $r['ri_exists'] == 0) continue;
+                            if ($filter_status_ri === 'belum' && $r['ri_exists'] > 0) continue;
+                            $filtered_rows[] = $r;
+                        }
+                    }
+
+                    if (!empty($filtered_rows)):
+                        foreach($filtered_rows as $row):
                             $status_class = ($row['status'] == 'Pending') ? 'bg-warning text-dark' : (($row['status'] == 'Completed') ? 'bg-success text-white' : 'bg-danger text-white');
                             
                             // Logika Warna Status RI
@@ -229,7 +284,7 @@ $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : 
                             </div>
                         </td>
                     </tr>
-                    <?php endwhile; else: ?>
+                    <?php endforeach; else: ?>
                     <tr>
                         <td colspan="7" class="text-center py-5 text-muted">
                             <div class="mb-3">

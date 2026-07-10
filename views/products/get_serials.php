@@ -47,7 +47,8 @@ SELECT
     
     ot.transaction_number AS outbound_no,
     bt.transaction_number AS borrow_no,
-    it.transaction_number AS inbound_no
+    it.transaction_number AS inbound_no,
+    at.transaction_no AS assembly_no
 
 FROM serial_numbers sn
 
@@ -59,6 +60,9 @@ LEFT JOIN borrowed_transactions bt
 
 LEFT JOIN inbound_transactions it 
     ON sn.last_transaction_id = it.id AND (sn.last_transaction_type = 'RI' OR sn.last_transaction_type = 'RET')
+
+LEFT JOIN assembly_outbound at
+    ON sn.last_transaction_id = at.id AND sn.last_transaction_type = 'ASSY'
 
 LEFT JOIN warehouses w
     ON sn.warehouse_id = w.id
@@ -92,6 +96,10 @@ while ($row = $result->fetch_assoc()) {
         case 'RET':
             $transaction_number = $row['inbound_no'];
             $transaction_type = 'inbound';
+            break;
+        case 'ASSY':
+            $transaction_number = $row['assembly_no'];
+            $transaction_type = 'assembly';
             break;
     }
 

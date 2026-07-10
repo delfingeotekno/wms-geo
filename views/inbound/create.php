@@ -32,7 +32,7 @@ function generateTransactionNumber($conn, $transaction_type, $warehouse_id) {
     $year = date('Y');
     $prefix_type = ($transaction_type === 'RI') ? 'RI' : 'RET';
     // Format: No_Urut/Tipe/Lokasi/Bulan/Tahun
-    $prefix = "%/{$prefix_type}/{$location_code}/{$roman_month}/{$year}";
+    $prefix = "%/{$prefix_type}/{$location_code}/%/%";
 
     // Filter
     $sql = "SELECT transaction_number FROM inbound_transactions WHERE transaction_number LIKE ? ORDER BY id DESC LIMIT 1";
@@ -75,12 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $transaction_type = trim($_POST['transaction_type']);
     $proof_photo_data = $_POST['proof_photo_data'] ?? null;
-    $po_number = trim($_POST['po_search']) ?? ''; 
-    $dn_number = trim($_POST['dn_number']) ?? '';
-    $reference = trim($_POST['reference']) ?? '';
+    $po_number = trim($_POST['po_search'] ?? ''); 
+    $dn_number = trim($_POST['dn_number'] ?? '');
+    $reference = trim($_POST['reference'] ?? '');
+    $shipping_cost = (float)($_POST['shipping_cost'] ?? 0);
+    $service_fee = (float)($_POST['service_fee'] ?? 0);
 
-    if (empty($sender) || empty($transaction_date) || empty($items) || empty($transaction_type) || empty($proof_photo_data)) {
-        $message = 'Mohon lengkapi semua data transaksi, tambahkan setidaknya satu item, dan ambil foto bukti.';
+    if (empty($sender) || empty($transaction_date) || empty($items) || empty($transaction_type)) {
+        $message = 'Mohon lengkapi semua data transaksi dan tambahkan setidaknya satu item.';
         $message_type = 'warning';
     } else {
         if ($transaction_type == 'RI' && empty($po_number)) {
@@ -92,20 +94,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $transaction_number = ($transaction_type === 'RI') ? generateTransactionNumber($conn, 'RI', $warehouse_id) : generateTransactionNumber($conn, 'RET', $warehouse_id);
 
                 $proof_photo_path = null;
-                $data = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $proof_photo_data));
-                $dir = '../../uploads/inbound_photos/';
-                if (!is_dir($dir)) { mkdir($dir, 0777, true); }
-                $file_name = 'inbound_' . str_replace('/', '_', $transaction_number) . '.jpeg';
-                $proof_photo_path = $dir . $file_name;
-                file_put_contents($proof_photo_path, $data);
+                if (!empty($proof_photo_data)) {
+                    $data = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $proof_photo_data));
+                    $dir = '../../uploads/inbound_photos/';
+                    if (!is_dir($dir)) { mkdir($dir, 0777, true); }
+                    $file_name = 'inbound_' . str_replace('/', '_', $transaction_number) . '.jpeg';
+                    $proof_photo_path = $dir . $file_name;
+                    file_put_contents($proof_photo_path, $data);
+                }
 
                 $created_by = $_SESSION['user_id'];
                 $total_items = count($items);
                 $document_number = ($transaction_type === 'RI') ? $po_number : $dn_number;
 
-                $insert_transaction_sql = "INSERT INTO inbound_transactions (transaction_number, transaction_type, transaction_date, sender, notes, total_items, created_by, is_deleted, proof_photo_path, document_number, reference, warehouse_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NOW(), NOW())";
+                $insert_transaction_sql = "INSERT INTO inbound_transactions (transaction_number, transaction_type, transaction_date, sender, notes, total_items, created_by, is_deleted, proof_photo_path, document_number, reference, shipping_cost, service_fee, warehouse_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
                 $stmt_transaction = $conn->prepare($insert_transaction_sql);
-                $stmt_transaction->bind_param("sssssiisssi", $transaction_number, $transaction_type, $transaction_date, $sender, $notes, $total_items, $created_by, $proof_photo_path, $document_number, $reference, $warehouse_id);
+                $stmt_transaction = $conn->prepare($insert_transaction_sql);
+                $stmt_transaction->bind_param("sssssiisssddi", $transaction_number, $transaction_type, $transaction_date, $sender, $notes, $total_items, $created_by, $proof_photo_path, $document_number, $reference, $shipping_cost, $service_fee, $warehouse_id);
                 
                 if (!$stmt_transaction->execute()) { throw new Exception("Gagal menyimpan header transaksi."); }
                 $transaction_id = $conn->insert_id;
@@ -217,9 +222,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <label class="fw-bold">Vendor / Pengirim</label>
                     <input type="text" class="form-control bg-white" id="sender" name="sender" readonly>
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="reference" class="form-label">Referensi</label>
                     <input type="text" class="form-control" id="reference" name="reference">
+                </div>
+                <div class="col-md-3">
+                    <label for="shipping_cost" class="form-label">Ongkos Kirim</label>
+                    <div class="input-group">
+                        <span class="input-group-text">IDR</span>
+                        <input type="number" class="form-control" id="shipping_cost" name="shipping_cost" value="0" step="any">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label for="service_fee" class="form-label">Biaya Jasa + Layanan</label>
+                    <div class="input-group">
+                        <span class="input-group-text">IDR</span>
+                        <input type="number" class="form-control" id="service_fee" name="service_fee" value="0" step="any">
+                    </div>
                 </div>
             </div>
 
@@ -467,6 +486,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(items => {
                 transactionItems = [];
+                if (items.length > 0) {
+                    // Set shipping and service fees from PO
+                    document.getElementById('shipping_cost').value = items[0].shipping_cost || 0;
+                    document.getElementById('service_fee').value = items[0].service_fee || 0;
+                }
                 items.forEach(item => {
                     const isSerial = parseInt(item.has_serial) === 1;
                     if (isSerial) {

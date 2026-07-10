@@ -19,3 +19,6 @@ Thumbs.db
 .vscode/
 .idea/
 .gemini/
+
+# QR Codes
+views/po/temp_qr/

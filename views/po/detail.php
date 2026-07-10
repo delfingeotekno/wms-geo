@@ -147,9 +147,21 @@ if (!$po) {
                                     <td class="text-end fw-bold pe-4"><?= number_format($po['total_before_tax'], 2, ',', '.') ?></td>
                                 </tr>
                                 <tr>
-                                    <td colspan="4" class="text-end fw-bold">PPN (11%)</td>
+                                    <td colspan="4" class="text-end fw-bold text-muted">PPN (11%)</td>
                                     <td class="text-end fw-bold pe-4"><?= number_format($po['ppn_amount'], 2, ',', '.') ?></td>
                                 </tr>
+                                <?php if ($po['shipping_cost'] > 0): ?>
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-muted">Ongkos Kirim</td>
+                                    <td class="text-end fw-bold pe-4"><?= number_format($po['shipping_cost'], 2, ',', '.') ?></td>
+                                </tr>
+                                <?php endif; ?>
+                                <?php if ($po['service_fee'] > 0): ?>
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-muted">Biaya Jasa + Layanan</td>
+                                    <td class="text-end fw-bold pe-4"><?= number_format($po['service_fee'], 2, ',', '.') ?></td>
+                                </tr>
+                                <?php endif; ?>
                                 <tr class="table-primary text-primary">
                                     <td colspan="4" class="text-end fw-bold fs-5">GRAND TOTAL (<?= $po['currency'] ?>)</td>
                                     <td class="text-end fw-bold fs-5 pe-4"><?= number_format($po['grand_total'], 2, ',', '.') ?></td>

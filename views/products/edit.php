@@ -61,7 +61,7 @@ if (!$product) {
 // Fetch existing serial numbers ONLY for the targeted warehouse tab
 $existing_serials = [];
 if ($product['has_serial']) {
-  $serials_query = $conn->prepare("SELECT serial_number FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND is_deleted = 0 ORDER BY serial_number ASC");
+  $serials_query = $conn->prepare("SELECT serial_number FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND (status = 'Tersedia' OR status = 'Tersedia (Bekas)') AND is_deleted = 0 ORDER BY serial_number ASC");
   $serials_query->bind_param("ii", $product_id, $target_warehouse_id);
   $serials_query->execute();
   $serials_result = $serials_query->get_result();
@@ -135,10 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($has_serial_post) {
       // Ambil array dari input serial_numbers[]
       $posted_serials_raw = isset($_POST['serial_numbers']) ? $_POST['serial_numbers'] : [];
+      $original_serials_raw = isset($_POST['original_serials']) ? $_POST['original_serials'] : [];
       
       // Bersihkan spasi dan hapus elemen kosong
       $posted_serials = array_filter(array_map('trim', $posted_serials_raw));
       $posted_serials = array_unique($posted_serials);
+      $original_serials = array_filter(array_map('trim', $original_serials_raw));
+      $original_serials = array_unique($original_serials);
 
       // Cek Duplikat di Database (Produk Lain)
       if (!empty($posted_serials)) {
@@ -154,8 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
       }
 
-      $serials_to_add = array_diff($posted_serials, $existing_serials);
-      $serials_to_remove = array_diff($existing_serials, $posted_serials);
+      $serials_to_add = array_diff($posted_serials, $original_serials);
+      $serials_to_remove = array_diff($original_serials, $posted_serials);
 
       // Ambil stok lama untuk gudang ini (untuk hitung selisih jika non-serial)
       $old_stock = (int)$product['stock_in_tab'];
@@ -195,10 +198,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       }
       
       // Hitung Stok Berdasarkan Serial Aktif (hanya di gudang target)
-      $count_q = $conn->prepare("SELECT COUNT(*) AS active_count FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND is_deleted = 0");
+      $count_q = $conn->prepare("SELECT COUNT(*) AS active_count FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND (status = 'Tersedia' OR status = 'Tersedia (Bekas)') AND is_deleted = 0");
       $count_q->bind_param("ii", $product_id, $target_warehouse_id);
       $count_q->execute();
       $stock_to_update = $count_q->get_result()->fetch_assoc()['active_count'];
+
+      // Update Warehouse Stocks (Sync with serial count for this warehouse)
+      $stock_upd_sql = "INSERT INTO warehouse_stocks (product_id, warehouse_id, stock) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE stock = ?";
+      $stock_upd_stmt = $conn->prepare($stock_upd_sql);
+      $stock_upd_stmt->bind_param("iiii", $product_id, $target_warehouse_id, $stock_to_update, $stock_to_update);
+      $stock_upd_stmt->execute();
+      $stock_upd_stmt->close();
 
     } else {
       $stock_to_update = (int)$_POST['stock'];
@@ -266,7 +276,7 @@ $product = $product_query_display->get_result()->fetch_assoc();
 $product['stock'] = $product['stock_in_tab'];
 
 $existing_serials_for_display = [];
-$serials_q = $conn->prepare("SELECT serial_number FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND is_deleted = 0 ORDER BY serial_number ASC");
+$serials_q = $conn->prepare("SELECT serial_number FROM serial_numbers WHERE product_id = ? AND warehouse_id = ? AND (status = 'Tersedia' OR status = 'Tersedia (Bekas)') AND is_deleted = 0 ORDER BY serial_number ASC");
 $serials_q->bind_param("ii", $product_id, $target_warehouse_id);
 $serials_q->execute();
 $res_s = $serials_q->get_result();
@@ -415,7 +425,8 @@ while ($row = $res_s->fetch_assoc()) { $existing_serials_for_display[] = $row['s
                 ?>
                 <div class="input-group mb-2 serial-row">
                   <span class="input-group-text"><?= $index + 1 ?></span>
-                  <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="<?= htmlspecialchars($sn) ?>" required>
+                  <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="<?= htmlspecialchars($sn) ?>">
+                  <input type="hidden" name="original_serials[]" value="<?= htmlspecialchars($sn) ?>">
                   <button type="button" class="btn btn-outline-danger remove-serial-btn"><i class="bi bi-trash"></i></button>
                 </div>
                 <?php
@@ -625,7 +636,7 @@ function handleBarcodeResult(code) {
         newRow.className = 'input-group mb-2 serial-row';
         newRow.innerHTML = `
             <span class="input-group-text">${rowCount}</span>
-            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="${value}" required>
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Masukkan S/N" value="${value}">
             <button type="button" class="btn btn-outline-danger remove-serial-btn"><i class="bi bi-trash"></i></button>
         `;
         serialContainer.appendChild(newRow);
@@ -663,8 +674,8 @@ function handleBarcodeResult(code) {
             stockInput.removeAttribute('required');
             stockInput.value = '0';
             serialNumbersInputGroup.style.display = 'block';
-            serialInputs.forEach(input => input.setAttribute('required', 'required'));
-            if (serialContainer.children.length === 0) addNewSerialRow();
+            // serialInputs.forEach(input => input.setAttribute('required', 'required'));
+            // if (serialContainer.children.length === 0) addNewSerialRow();
         } else {
             stockInputGroup.style.display = 'block';
             stockInput.setAttribute('required', 'required');

@@ -35,7 +35,7 @@ function generateTransactionNumber($conn) {
     $roman_month = convertToRoman(date('n'));
     $year = date('Y');
     // Adjust the prefix for the LIKE query to find the last transaction number
-    $prefix = "%/{$prefix_type}/{$roman_month}/{$year}";
+    $prefix = "%/{$prefix_type}/%/%";
 
     // Query to find the last transaction number with the new format
     $sql = "SELECT transaction_number FROM outbound_transactions WHERE transaction_number LIKE ? ORDER BY id DESC LIMIT 1";
@@ -70,7 +70,7 @@ function generateBastNumber($conn) {
     $roman_month = convertToRoman(date('n'));
     $year = date('Y');
     // Adjust the prefix for the LIKE query to find the last BAST number
-    $prefix = "%/{$prefix_type}/{$roman_month}/{$year}";
+    $prefix = "%/{$prefix_type}/%/%";
 
     // Query to find the last BAST number
     // Uses the bast_number column which must exist (see schema note above)

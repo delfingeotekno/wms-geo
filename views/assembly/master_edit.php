@@ -86,6 +86,24 @@ if (!$assembly) {
                             </thead>
                             <tbody>
                                 <?php
+                                // Pre-fetch produk untuk mencegah query berulang dalam loop
+                                // Ambil produk aktif + produk yang sudah ada di resep ini (meskipun sudah dihapus)
+                                $prod_query = $conn->query("
+                                    SELECT id, product_code, product_name, is_deleted 
+                                    FROM products 
+                                    WHERE is_deleted = 0 
+                                       OR id IN (SELECT product_id FROM assembly_details WHERE assembly_id = $id)
+                                    ORDER BY product_name ASC
+                                ");
+                                $available_products = [];
+                                $active_products_html = "<option value=''>-- Pilih Produk --</option>";
+                                while($p = $prod_query->fetch_assoc()) {
+                                    $available_products[] = $p;
+                                    if ($p['is_deleted'] == 0) {
+                                        $active_products_html .= "<option value='{$p['id']}'>[{$p['product_code']}] " . htmlspecialchars(addslashes($p['product_name'])) . "</option>";
+                                    }
+                                }
+
                                 $details = $conn->query("SELECT * FROM assembly_details WHERE assembly_id = $id");
                                 $rowCount = 0;
                                 while($det = $details->fetch_assoc()):
@@ -94,11 +112,12 @@ if (!$assembly) {
                                 <tr id="row_<?= $rowCount ?>">
                                     <td>
                                         <select name="product_id[]" class="form-select select2-products" required>
+                                            <option value="">-- Pilih Produk --</option>
                                             <?php
-                                            $products = $conn->query("SELECT id, product_code, product_name FROM products WHERE is_deleted = 0");
-                                            while($p = $products->fetch_assoc()) {
+                                            foreach ($available_products as $p) {
                                                 $selected = ($p['id'] == $det['product_id']) ? 'selected' : '';
-                                                echo "<option value='{$p['id']}' $selected>[{$p['product_code']}] {$p['product_name']}</option>";
+                                                $del_label = ($p['is_deleted'] == 1) ? ' (Dihapus)' : '';
+                                                echo "<option value='{$p['id']}' $selected>[{$p['product_code']}] " . htmlspecialchars($p['product_name']) . "{$del_label}</option>";
                                             }
                                             ?>
                                         </select>
@@ -141,13 +160,7 @@ function addRow() {
     <tr id="row_${rowCount}">
         <td>
             <select name="product_id[]" class="form-select select2-products" required>
-                <option value="">-- Pilih Produk --</option>
-                <?php
-                $products = $conn->query("SELECT id, product_code, product_name FROM products WHERE is_deleted = 0");
-                while($p = $products->fetch_assoc()) {
-                    echo "<option value='{$p['id']}'>[{$p['product_code']}] {$p['product_name']}</option>";
-                }
-                ?>
+                <?= $active_products_html ?>
             </select>
         </td>
         <td><input type="number" name="default_qty[]" class="form-control" value="1" min="1" required></td>

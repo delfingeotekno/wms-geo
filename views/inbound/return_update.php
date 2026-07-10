@@ -61,11 +61,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st_header->execute();
 
         // --- LANGKAH 4: SINKRONISASI DETAIL ---
+        // Ambil serial number lama sebelum detail dihapus
+        $sql_old_sns = "SELECT product_id, serial_number FROM inbound_transaction_details WHERE transaction_id = ? AND serial_number IS NOT NULL AND serial_number != ''";
+        $stmt_old_sns = $conn->prepare($sql_old_sns);
+        $stmt_old_sns->bind_param("i", $return_id);
+        $stmt_old_sns->execute();
+        $old_sns = $stmt_old_sns->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt_old_sns->close();
+
         // Hapus detail lama
         $sql_del = "DELETE FROM inbound_transaction_details WHERE transaction_id = ?";
         $st_del = $conn->prepare($sql_del);
         $st_del->bind_param("i", $return_id);
         $st_del->execute();
+        $st_del->close();
+
+        // Revert status serial number lama ke 'Keluar' (karena mungkin dibatalkan pengembaliannya)
+        foreach ($old_sns as $old_sn) {
+            $stmt_revert_sn = $conn->prepare("UPDATE serial_numbers SET status = 'Keluar', updated_at = NOW() WHERE serial_number = ? AND product_id = ?");
+            $stmt_revert_sn->bind_param("si", $old_sn['serial_number'], $old_sn['product_id']);
+            $stmt_revert_sn->execute();
+            $stmt_revert_sn->close();
+        }
+
+        // Ambil warehouse_id dari transaksi return
+        $wh_query = $conn->query("SELECT warehouse_id FROM inbound_transactions WHERE id = $return_id");
+        $wh_row = $wh_query->fetch_assoc();
+        $warehouse_id = (int)$wh_row['warehouse_id'];
 
         // Masukkan detail baru dan update stok baru (stok ditambah qty return baru)
         foreach ($items as $item) {
@@ -74,16 +96,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st_ins = $conn->prepare($sql_ins);
             $st_ins->bind_param("iids", $return_id, $item['product_id'], $item['quantity'], $item['serial_number']);
             $st_ins->execute();
+            $st_ins->close();
 
             $sql_add_stock = "UPDATE products SET stock = stock + ? WHERE id = ?";
             $st_add = $conn->prepare($sql_add_stock);
             $st_add->bind_param("di", $item['quantity'], $item['product_id']);
             $st_add->execute();
+            $st_add->close();
+
+            // Sinkronkan status serial number baru ke 'Tersedia' dengan fallback insert jika belum ada
+            if (!empty($item['serial_number'])) {
+                $stmt_sn_upd = $conn->prepare("UPDATE serial_numbers SET status = 'Tersedia', warehouse_id = ?, last_transaction_id = ?, last_transaction_type = 'RET', updated_at = NOW() WHERE serial_number = ? AND product_id = ?");
+                $stmt_sn_upd->bind_param("iisi", $warehouse_id, $return_id, $item['serial_number'], $item['product_id']);
+                $stmt_sn_upd->execute();
+                
+                if ($stmt_sn_upd->affected_rows === 0) {
+                    $stmt_chk = $conn->prepare("SELECT id FROM serial_numbers WHERE serial_number = ? AND product_id = ?");
+                    $stmt_chk->bind_param("si", $item['serial_number'], $item['product_id']);
+                    $stmt_chk->execute();
+                    $res_chk = $stmt_chk->get_result();
+                    
+                    if ($res_chk->num_rows === 0) {
+                        // Sisipkan baru jika belum ada
+                        $stmt_ins_sn = $conn->prepare("INSERT INTO serial_numbers (product_id, warehouse_id, serial_number, status, last_transaction_id, last_transaction_type, is_deleted, created_at, updated_at) VALUES (?, ?, ?, 'Tersedia', ?, 'RET', 0, NOW(), NOW())");
+                        $stmt_ins_sn->bind_param("iisi", $item['product_id'], $warehouse_id, $item['serial_number'], $return_id);
+                        $stmt_ins_sn->execute();
+                        $stmt_ins_sn->close();
+                    } else {
+                        // Re-aktifkan
+                        $stmt_reactivate = $conn->prepare("UPDATE serial_numbers SET status = 'Tersedia', warehouse_id = ?, is_deleted = 0, last_transaction_id = ?, last_transaction_type = 'RET', updated_at = NOW() WHERE serial_number = ? AND product_id = ?");
+                        $stmt_reactivate->bind_param("iisi", $warehouse_id, $return_id, $item['serial_number'], $item['product_id']);
+                        $stmt_reactivate->execute();
+                        $stmt_reactivate->close();
+                    }
+                    $stmt_chk->close();
+                }
+                $stmt_sn_upd->close();
+            }
         }
 
         // Jika semua berhasil
         $conn->commit();
-        header("Location: views/borrow/index.php?status=success_update");
+        header("Location: index.php?status=success_edit_return");
         exit();
 
     } catch (Exception $e) {

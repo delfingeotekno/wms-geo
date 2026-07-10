@@ -21,11 +21,29 @@ if ($active_tab !== 'all') {
 }
 
 $search = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : '';
-$status = isset($_GET['status']) ? $_GET['status'] : '';
+$status = isset($_GET['status']) ? $_GET['status'] : ''; // Alert status
+$filter_status = isset($_GET['filter_status']) ? $conn->real_escape_string($_GET['filter_status']) : '';
+$start_date = isset($_GET['start_date']) ? $conn->real_escape_string($_GET['start_date']) : '';
+$end_date = isset($_GET['end_date']) ? $conn->real_escape_string($_GET['end_date']) : '';
 
 $sql_filter = "WHERE t.is_deleted = 0";
 if ($search) {
-    $sql_filter .= " AND (t.transaction_number LIKE '%$search%' OR t.recipient LIKE '%$search%')";
+    $sql_filter .= " AND (t.transaction_number LIKE '%$search%' OR t.recipient LIKE '%$search%' OR t.reference LIKE '%$search%' OR t.subject LIKE '%$search%' OR t.po_number LIKE '%$search%')";
+}
+if ($filter_status) {
+    // Menangani 'Completed' atau 'Selesai' yang artinya sama di db
+    if ($filter_status === 'Selesai' || $filter_status === 'Completed') {
+        $sql_filter .= " AND (t.status = 'Selesai' OR t.status = 'Completed')";
+    } else {
+        $sql_filter .= " AND t.status = '$filter_status'";
+    }
+}
+if ($start_date && $end_date) {
+    $sql_filter .= " AND t.transaction_date BETWEEN '$start_date' AND '$end_date'";
+} elseif ($start_date) {
+    $sql_filter .= " AND t.transaction_date >= '$start_date'";
+} elseif ($end_date) {
+    $sql_filter .= " AND t.transaction_date <= '$end_date'";
 }
 
 // PERUBAHAN 1: Menambahkan kolom 'status' ke dalam query SQL dan filter tenant/warehouse
@@ -41,14 +59,14 @@ $transactions = $result->fetch_all(MYSQLI_ASSOC);
 <ul class="nav nav-tabs border-0">
   <li class="nav-item">
     <a class="nav-link <?= ($active_tab === 'all') ? 'active bg-white text-dark fw-bold border-bottom-0' : 'text-muted' ?>" 
-       href="?tab=all<?= $search ? '&search='.urlencode($search) : '' ?>">
+       href="?tab=all<?= $search ? '&search='.urlencode($search) : '' ?><?= $filter_status ? '&filter_status='.urlencode($filter_status) : '' ?><?= $start_date ? '&start_date='.urlencode($start_date) : '' ?><?= $end_date ? '&end_date='.urlencode($end_date) : '' ?>">
        Semua Lokasi Gudang
     </a>
   </li>
   <?php foreach ($warehouses_list as $wh): ?>
   <li class="nav-item">
     <a class="nav-link <?= ($active_tab == $wh['id']) ? 'active bg-white text-dark fw-bold border-bottom-0' : 'text-muted' ?>" 
-       href="?tab=<?= $wh['id'] ?><?= $search ? '&search='.urlencode($search) : '' ?>">
+       href="?tab=<?= $wh['id'] ?><?= $search ? '&search='.urlencode($search) : '' ?><?= $filter_status ? '&filter_status='.urlencode($filter_status) : '' ?><?= $start_date ? '&start_date='.urlencode($start_date) : '' ?><?= $end_date ? '&end_date='.urlencode($end_date) : '' ?>">
        <?= htmlspecialchars($wh['name']) ?>
     </a>
   </li>
@@ -85,15 +103,37 @@ $transactions = $result->fetch_all(MYSQLI_ASSOC);
             </div>
         <?php endif; ?>
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <form action="index.php" method="GET" class="input-group">
-                    <input type="hidden" name="tab" value="<?= htmlspecialchars($active_tab) ?>">
-                    <input type="text" class="form-control" name="search" placeholder="Cari nomor transaksi atau penerima..." value="<?= htmlspecialchars($search) ?>">
-                    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
-                </form>
+        <form action="index.php" method="GET" class="mb-3">
+            <input type="hidden" name="tab" value="<?= htmlspecialchars($active_tab) ?>">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="search" placeholder="Cari No. Transaksi, Kapal..." value="<?= htmlspecialchars($search) ?>">
+                </div>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text">Dari</span>
+                        <input type="date" class="form-control" name="start_date" value="<?= htmlspecialchars($start_date) ?>">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text">Sampai</span>
+                        <input type="date" class="form-control" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="filter_status" class="form-select">
+                        <option value="">Semua Status</option>
+                        <option value="Pending" <?= ($filter_status == 'Pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="Selesai" <?= ($filter_status == 'Selesai' || $filter_status == 'Completed') ? 'selected' : '' ?>>Selesai</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button class="btn btn-primary w-100" type="submit" title="Filter"><i class="bi bi-filter"></i></button>
+                    <a href="index.php?tab=<?= htmlspecialchars($active_tab) ?>" class="btn btn-outline-danger w-100" title="Reset"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
             </div>
-        </div>
+        </form>
 
         <div class="table-responsive">
             <table class="table table-bordered table-hover" id="outboundTable">
@@ -108,7 +148,7 @@ $transactions = $result->fetch_all(MYSQLI_ASSOC);
                         <th>Penerima</th>
                         <th>No. PO</th>
                         <th>Referensi</th>
-                        <th>No. BAST</th>
+                        <th>Subjek</th>
                         <th>Total Item</th>
                         <th>Dibuat Oleh</th>
                         <th>Status</th> <th>Aksi</th>
@@ -127,7 +167,7 @@ $transactions = $result->fetch_all(MYSQLI_ASSOC);
                                 <td><?= htmlspecialchars($transaction['recipient']) ?></td>
                                 <td><?= htmlspecialchars($transaction['po_number']) ?></td>
                                 <td><?= htmlspecialchars($transaction['reference']) ?></td>
-                                <td><?= htmlspecialchars($transaction['bast_number']) ?></td>
+                                <td><?= htmlspecialchars($transaction['subject'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($transaction['total_items']) ?></td>
                                 <td><?= htmlspecialchars($transaction['creator_name']) ?></td>
                                 

@@ -199,14 +199,13 @@ if (empty($type_filter) || $type_filter == 'assembly') {
   if ($product_id > 0) { $where_clauses[] = "p.id = ?"; $params[] = $product_id; $types .= "i"; }
 
   $sql_parts[] = "
-    (SELECT 'assembly_in' COLLATE utf8mb4_unicode_ci AS type, ao.id, ao.created_at AS date, p.product_name COLLATE utf8mb4_unicode_ci AS product_name, SUM(aor.qty) AS quantity, ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, ao.project_name COLLATE utf8mb4_unicode_ci AS notes, 
-      'Perakitan (Hasil)' COLLATE utf8mb4_unicode_ci AS party_name 
-    FROM assembly_outbound_results aor
-    JOIN assembly_outbound ao ON ao.id = aor.outbound_id
-    JOIN assemblies a ON aor.assembly_id = a.id
-    JOIN products p ON p.id = a.finished_product_id
-    WHERE " . implode(' AND ', $where_clauses) . "
-    GROUP BY ao.id, p.id)";
+    (SELECT 'assembly_in' COLLATE utf8mb4_unicode_ci AS type, ao.id, ah.created_at AS date, p.product_name COLLATE utf8mb4_unicode_ci AS product_name, SUM(ah.quantity) AS quantity, ao.transaction_no COLLATE utf8mb4_unicode_ci AS transaction_number, ah.note COLLATE utf8mb4_unicode_ci AS notes, 
+      IF(ah.type='Finished Product', 'Perakitan (Hasil)', 'Perakitan (Komponen Kembali)') COLLATE utf8mb4_unicode_ci AS party_name 
+    FROM assembly_inbound_history ah
+    JOIN assembly_outbound ao ON ao.id = ah.outbound_id
+    JOIN products p ON p.id = ah.product_id
+    WHERE " . str_replace('ao.', 'ah.', implode(' AND ', $where_clauses)) . "
+    GROUP BY ao.id, p.id, ah.type)";
   $union_params = array_merge($union_params, $params);
   $union_types .= $types;
 }

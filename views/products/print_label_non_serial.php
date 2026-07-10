@@ -26,9 +26,9 @@ if (!$product) {
 
 $product_name = $product['product_name'];
 
-// 3. Pecah jumlah cetak menjadi array per 21 label (Grid 3x7)
+// 3. Pecah jumlah cetak menjadi array per 44 label (Grid 4x11 untuk A3)
 $total_labels = range(1, $qty);
-$pages = array_chunk($total_labels, 21);
+$pages = array_chunk($total_labels, 44);
 ?>
 
 <!DOCTYPE html>
@@ -45,22 +45,22 @@ $pages = array_chunk($total_labels, 21);
             font-family: 'Arial', sans-serif;
         }
 
-        /* Spesifikasi Kertas A4 */
+        /* Spesifikasi Kertas A3 */
         .label-page { 
-            width: 210mm; 
-            height: 297mm; 
-            padding: 10mm 4mm; 
+            width: 297mm; 
+            height: 420mm; 
+            padding: 13mm 15mm; 
             margin: 0 auto; 
             background: white;
             box-sizing: border-box;
             page-break-after: always;
         }
 
-        /* Grid 3 Kolom x 7 Baris (Total 21) - Optimal untuk A4 */
+        /* Grid 4 Kolom x 11 Baris (Total 44) - Optimal untuk A3 */
         .label-grid { 
             display: grid; 
-            grid-template-columns: repeat(3, 64mm); 
-            grid-template-rows: repeat(7, 34mm); 
+            grid-template-columns: repeat(4, 64mm); 
+            grid-template-rows: repeat(11, 34mm); 
             column-gap: 2mm; 
             row-gap: 2mm;
             justify-content: center;
@@ -81,35 +81,35 @@ $pages = array_chunk($total_labels, 21);
             text-align: center;
         }
 
-        /* Teks Nama Produk - Dikecilkan */
+        /* Teks Nama Produk - Dikecilkan kembali */
         .product-text { 
-            font-size: 8pt; 
+            font-size: 7pt; 
             font-weight: 600;
             color: #000; 
-            line-height: 1.1;
+            line-height: 1;
             width: 100%;
             word-wrap: break-word;
             margin-bottom: 2mm;
-            max-height: 8mm;
+            max-height: 6mm;
             overflow: hidden;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
         }
 
-        /* Ukuran Barcode - Optimal untuk scannability */
+        /* Ukuran Barcode - Panjang ke Samping */
         .barcode-img { 
             width: 100%; 
             height: 15mm; 
             object-fit: contain;
             image-rendering: -webkit-optimize-contrast;
             image-rendering: pixelated;
-            margin-bottom: 1mm;
+            margin-bottom: 2mm;
         }
 
-        /* Teks Kode Produk - Dikecilkan */
+        /* Teks Kode Produk - Dikecilkan kembali */
         .code-text { 
-            font-size: 9pt; 
+            font-size: 8pt; 
             font-weight: bold; 
             letter-spacing: 0.5px;
             margin: 0;
@@ -120,9 +120,9 @@ $pages = array_chunk($total_labels, 21);
         @media print {
             body { background: none; }
             .label-page { margin: 0; border: none; box-shadow: none; }
-            .label-box { border: none; } 
+            .label-box { border: none; } /* Sembunyikan garis bantu stiker */
             @page { 
-                size: A4; 
+                size: A3; 
                 margin: 0; 
             }
         }
@@ -139,13 +139,12 @@ $pages = array_chunk($total_labels, 21);
                             <?= htmlspecialchars($product_name) ?>
                         </div>
 
-                        <img class="barcode-img" 
-                             src="https://bwipjs-api.metafloor.com/?bcid=code128&text=<?= urlencode($code) ?>&scale=4&height=40&rotate=N&includetext=false" 
-                             alt="Barcode">
-
-                        <div class="code-text">
-                            <?= htmlspecialchars($code) ?>
+                        <div class="barcode-container">
+                            <img class="barcode-img" 
+                                 src="https://barcode.tec-it.com/barcode.ashx?data=<?= urlencode($code) ?>&code=Code128&dpi=300&imagetype=Png" 
+                                 alt="Barcode">
                         </div>
+
                     </div>
                 <?php endforeach; ?>
             </div>

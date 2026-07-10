@@ -34,5 +34,25 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 
+// Support for Custom/Manual Order (No Templates)
+if (empty($items)) {
+    $q_header = $conn->prepare("SELECT total_units, total_received FROM assembly_outbound WHERE id = ? AND assembly_id IS NULL");
+    $q_header->bind_param("i", $outbound_id);
+    $q_header->execute();
+    $header = $q_header->get_result()->fetch_assoc();
+
+    if ($header) {
+        $items[] = [
+            'id'            => 0, // Virtual Row ID for manual
+            'assembly_id'   => 0,
+            'assembly_name' => 'Custom Order / Manual',
+            'product_name'  => 'Multiple Components',
+            'qty_ordered'   => (int)$header['total_units'],
+            'qty_received'  => (int)$header['total_received'],
+            'remaining'     => (int)($header['total_units'] - $header['total_received'])
+        ];
+    }
+}
+
 echo json_encode($items);
 ?>

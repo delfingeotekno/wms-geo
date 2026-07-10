@@ -12,14 +12,16 @@ $user_name = $_SESSION['name']; // Nama user login
 
 $packing_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($packing_id == 0) {
-  die("ID packing slip tidak valid.");
+  die("ID packing slip TAG tidak valid.");
 }
 
-// 🔹 Ambil data dari tabel packing_slips
+// 🔹 Ambil data dari tabel transfer_packing_slips dan surat jalan transfer
 $query = "SELECT 
   ps.*, 
+  t.transfer_no as reference,
   u.name AS creator_name 
-FROM packing_slips ps
+FROM transfer_packing_slips ps
+JOIN transfers t ON ps.transfer_id = t.id
 JOIN users u ON ps.created_by = u.id
 WHERE ps.id = ?";
 $stmt = $conn->prepare($query);
@@ -29,45 +31,41 @@ $packing = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$packing) {
-  die("Packing slip tidak ditemukan.");
+  die("Packing slip TAG tidak ditemukan.");
 }
 
-// 🔹 Ambil data item dari outbound_transaction_details
+// 🔹 Ambil data item dari transfer_packing_slip_details
 $query = "SELECT 
   d.*, 
   p.product_code, 
   p.product_name, 
-  p.unit, 
-  p.has_serial
-FROM outbound_transaction_details d
+  p.unit
+FROM transfer_packing_slip_details d
 JOIN products p ON d.product_id = p.id
-WHERE d.transaction_id = ?";
+WHERE d.packing_slip_id = ?";
 $stmt = $conn->prepare($query);
-$stmt->bind_param("i", $packing['transaction_id']);
+$stmt->bind_param("i", $packing['id']);
 $stmt->execute();
 $details = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// 🔹 Grouping item by product
-$grouped_details = [];
+// 🔹 Format detail produk untuk dimasukkan ke PDF
+$final_details = [];
 foreach ($details as $row) {
-  $key = $row['product_id'];
-  if (!isset($grouped_details[$key])) {
-    $grouped_details[$key] = [
+    // pecah serial number dari string by \n
+    $serials_array = [];
+    if (!empty($row['serial_numbers'])) {
+        $serials_array = explode("\n", str_replace("\r", "", $row['serial_numbers']));
+    }
+    
+    $final_details[] = [
       'product_name' => $row['product_name'],
       'product_code' => $row['product_code'],
       'unit' => $row['unit'],
-      'quantity' => 0,
-      'serial_numbers' => [],
+      'quantity' => $row['quantity'],
+      'serial_numbers' => $serials_array,
     ];
-  }
-
-  $grouped_details[$key]['quantity'] += $row['quantity'];
-  if ($row['has_serial'] == 1 && !empty($row['serial_number'])) {
-    $grouped_details[$key]['serial_numbers'][] = $row['serial_number'];
-  }
 }
-$final_details = array_values($grouped_details);
 
 class PDF extends FPDF {
   private $packing;
@@ -115,7 +113,7 @@ class PDF extends FPDF {
     $this->SetFont('Arial', '', 9);
     $this->Cell(15, 6, 'Subject:', 1, 0, 'L');
     $this->SetFont('Arial', '', 9);
-    $this->Cell(80, 6, 'PENGIRIMAN BARANG', 1, 0, 'L');
+    $this->Cell(80, 6, $this->packing['subject'] ?: '-', 1, 0, 'L');
     $this->SetFont('Arial', '', 9);
     $this->Cell(15, 6, 'Ref:', 1, 0, 'L');
     $this->SetFont('Arial', '', 9);
@@ -146,10 +144,14 @@ class PDF extends FPDF {
       $desc = $row['product_name'];
       $qty = $row['quantity'];
       $unit = $row['unit'];
-      $note = !empty($row['serial_numbers']) ? "S/N: " . implode("\nS/N: ", $row['serial_numbers']) : '';
+      
+      // Filter empty serials array element
+      $sns = array_filter($row['serial_numbers'], function($sn) { return trim($sn) !== ''; });
+      $note = !empty($sns) ? "S/N: " . implode("\nS/N: ", $sns) : '';
 
       $nb = max($this->NbLines(70, $desc), $this->NbLines(40, $note));
       $h = 5 * $nb;
+      if ($h < 10) $h = 10; // min height
 
       $this->CheckPageBreak($h);
       $y = $this->GetY();
@@ -204,10 +206,10 @@ class PDF extends FPDF {
 
     // Tambahkan baris kosong hingga 5
     $total_rows = count($this->details);
-    $h_empty = 6;
+    $h_empty = 8;
     for ($j = $total_rows; $j < 5; $j++) {
       $this->CheckPageBreak($h_empty);
-      $this->Cell(10, $h_empty, $i++, 1, 0, 'C');
+      $this->Cell(10, $h_empty, '', 1, 0, 'C');
       $this->Cell(85, $h_empty, '', 1, 0);
       $this->Cell(11.5, $h_empty, '', 1, 0);
       $this->Cell(13.5, $h_empty, '', 1, 0);
@@ -216,15 +218,13 @@ class PDF extends FPDF {
       $this->Cell(46, $h_empty, '', 1, 1);
     }
         
-        // --- PERBAIKAN DI SINI: MENGAMBIL NILAI koli_count ---
-        
-        $koli_count = !empty($this->packing['koli_count']) ? $this->packing['koli_count'] : 0;
-        $koli_text = $koli_count . ' Koli';
+    $koli_count = !empty($this->packing['koli_count']) ? $this->packing['koli_count'] : 0;
+    $koli_text = $koli_count . ' Koli';
         
     // Footer Jumlah
     $this->SetFont('Arial', 'B', 9);
     $this->Cell(144, 7, 'Jumlah', 1, 0, 'R');
-    $this->Cell(46, 7, $koli_text, 1, 1, 'C'); // Menggunakan nilai dinamis $koli_text
+    $this->Cell(46, 7, $koli_text, 1, 1, 'C'); 
   }
 
   function SignatureSection() {
@@ -248,11 +248,6 @@ class PDF extends FPDF {
     $this->Cell(48.8, 6, '', 1, 0, 'C');
     $this->Cell(46.2, 6, '', 1, 1, 'C');
   }
-
-  // ... (Fungsi NoteSection, CheckPageBreak, NbLines tetap sama) ...
-    function NoteSection() {
-        // ... (Fungsi NoteSection Anda sebelumnya) ...
-    }
 
     function CheckPageBreak($h) {
         if ($this->GetY() + $h > $this->PageBreakTrigger)
@@ -293,6 +288,5 @@ $pdf->SetMargins(10, 10, 10);
 $pdf->AddPage();
 $pdf->ItemTableBody();
 $pdf->SignatureSection();
-$pdf->NoteSection();
-$pdf->Output('I', 'packing_slip_' . str_replace('/', '_', $packing['packing_slip_number']) . '.pdf');
+$pdf->Output('I', 'tag_packing_slip_' . str_replace('/', '_', $packing['packing_slip_number']) . '.pdf');
 ?>

@@ -4,10 +4,10 @@ include '../../includes/db_connect.php';
 
 $id = $_GET['id'] ?? 0;
 
-// 1. Ambil data Header
+// 1. Ambil data Header (Gunakan LEFT JOIN agar custom order/tanpa template tetap muncul)
 $sql_header = "SELECT ao.*, a.assembly_name, u.name as admin_name 
                FROM assembly_outbound ao 
-               JOIN assemblies a ON ao.assembly_id = a.id 
+               LEFT JOIN assemblies a ON ao.assembly_id = a.id 
                JOIN users u ON ao.user_id = u.id 
                WHERE ao.id = ?";
 $stmt = $conn->prepare($sql_header);

@@ -89,7 +89,7 @@ class PDF extends FPDF {
     // Header
     function Header() {
         // Logo
-        $this->Image('../../assets/img/logogeo.png', 140, 3, 60); 
+        $this->Image('../../assets/img/logogeo.png', 157, 0, 60); 
         
         // Judul utama 
         $this->SetFont('Arial', 'B', 16);
@@ -100,30 +100,30 @@ class PDF extends FPDF {
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'SJ No:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, $this->transaction['transaction_number'], 1, 0, 'L');
+        $this->Cell(82, 6, $this->transaction['transaction_number'], 1, 0, 'L');
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'Date:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, date('d M Y', strtotime($this->transaction['transaction_date'])), 1, 1, 'L');
+        $this->Cell(82, 6, date('d M Y', strtotime($this->transaction['transaction_date'])), 1, 1, 'L');
         
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'To:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, $this->transaction['recipient'], 1, 0, 'L');
+        $this->Cell(82, 6, $this->transaction['recipient'], 1, 0, 'L');
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'PO No:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, $this->transaction['po_number'] ?: '-', 1, 1, 'L');
+        $this->Cell(82, 6, $this->transaction['po_number'] ?: '-', 1, 1, 'L');
 
         // Menambahkan baris untuk Subject dan Ref
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'Subject:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, $this->transaction['subject'], 1, 0, 'L');
+        $this->Cell(82, 6, $this->transaction['subject'], 1, 0, 'L');
         $this->SetFont('Arial', 'B', 9);
         $this->Cell(25, 6, 'Ref:', 1, 0, 'L');
         $this->SetFont('Arial', '', 9);
-        $this->Cell(70, 6, $this->transaction['reference'] ?: '-', 1, 1, 'L');
+        $this->Cell(82, 6, $this->transaction['reference'] ?: '-', 1, 1, 'L');
 
         $this->Ln(4);
         $this->SetFont('Arial', '', 9);
@@ -135,9 +135,18 @@ class PDF extends FPDF {
         $this->SetFillColor(255,255,255);
         $this->SetDrawColor(0,0,0);
         $this->SetLineWidth(.2);
-
+	
+        // INI DIUBAH
         // Lebar kolom (Total 190mm)
-        $w = array(10, 85, 11.5, 13.5, 12, 12, 46);
+        $w = array(
+            10,   // No
+            97,   // Description
+            12,   // Qty    
+            19,   // UOM
+            12,   // Check
+            12,   // Sign
+            52    // Note
+        );
 
         $this->Cell($w[0], 6, 'No.', 1, 0, 'C', true);
         $this->Cell($w[1], 6, 'Description', 1, 0, 'C', true);
@@ -204,9 +213,17 @@ class PDF extends FPDF {
     function ItemTableBody() {
         $this->SetFont('Arial','',9);
         $this->SetTextColor(0);
-        
+        // ini diubah
         // Lebar kolom (Total 190mm)
-        $w = array(10, 85, 11.5, 13.5, 12, 12, 46);
+        $w = array(
+            10,   // No
+            97,   // Description
+            12,   // Qty
+            19,   // UOM
+            12,   // Check
+            12,   // Sign
+            52    // Note
+        );
         $cell_line_height = 5; // Tinggi per baris teks dalam MultiCell
         $i = 1;
         
@@ -222,9 +239,9 @@ class PDF extends FPDF {
             $sn_list = $row['serial_numbers'];
             $note = '';
 
-            // Format Serial Numbers jika ada
+            // Format Serial Numbers jika ada (Gunakan koma agar hemat tempat)
             if (!empty($sn_list)) {
-                $note = "S/N:\n" . implode("\n", $sn_list);
+                $note = "S/N: " . implode(", ", $sn_list);
             }
             
             $start_x = $this->GetX();
@@ -351,7 +368,7 @@ class PDF extends FPDF {
         // Tanda tangan
         $this->SetFont('Arial', 'B', 9);
         $this->SetLineWidth(0.2);
-        $w_sig = 47.5; // (190 / 4)
+        $w_sig = 53.5; // (212 / 4)
         $this->Cell($w_sig, 6, 'Dibuat Oleh', 1, 0, 'C');
         $this->Cell($w_sig, 6, 'Mengetahui', 1, 0, 'C');
         $this->Cell($w_sig + 1.5, 6, 'Instalatur', 1, 0, 'C');
@@ -361,8 +378,8 @@ class PDF extends FPDF {
         $this->Cell($w_sig + 1.5, 12, '', 'LBR', 0, 'C');
         $this->Cell($w_sig - 1.5, 12, '', 'LBR', 1, 'C');
         $this->SetFont('Arial', '', 9);
-        $this->Cell($w_sig, 6, 'Windah', 'LBR', 0, 'C'); 
-        $this->Cell($w_sig, 6, 'Meri Mentari', 'LBR', 0, 'C'); // Mengetahui
+        $this->Cell($w_sig, 6, '', 'LBR', 0, 'C'); 
+        $this->Cell($w_sig, 6, '', 'LBR', 0, 'C'); // Mengetahui
         $this->Cell($w_sig + 1.5, 6, '', 'LBR', 0, 'C'); // Instalatur
         $this->Cell($w_sig - 1.5, 6, '' ?? '', 'LBR', 1, 'C'); // Penerima
         $this->Ln(2);
@@ -370,7 +387,7 @@ class PDF extends FPDF {
         // Bagian catatan yang baru
         $x = $this->GetX();
         $y = $this->GetY();
-        $width = 190;
+        $width = 214;
         $notes = $this->transaction['notes'] ?? '';
         
         $h_notes = 6;
@@ -413,12 +430,36 @@ class PDF extends FPDF {
 }
 
 // Inisialisasi dan Hasilkan PDF
-$pdf = new PDF('P', 'mm', 'A4');
+$paperWidth  = 216;   // mm
+$paperHeight = 330;   // mm
+
+// Margin kalibrasi printer
+$marginLeft   = 1;
+$marginTop    = 8;
+$marginRight  = 1;
+
+// Offset untuk kalibrasi hasil cetak
+$offsetX = 0;
+$offsetY = 0;
+
+// =========================
+
+$pdf = new PDF(
+    'P',
+    'mm',
+    array($paperWidth, $paperHeight)
+);
+
 $pdf->AliasNbPages();
-$pdf->setTransactionData($transaction, $final_details); 
-$pdf->AddPage();
-$pdf->SetMargins(10, 10, 10);
-$pdf->ItemTableBody();
+$pdf->setTransactionData($transaction, $final_details);
+
+$pdf->SetMargins(
+    $marginLeft,
+    $marginTop,
+    $marginRight
+);
+
+$pdf->AddPage();$pdf->ItemTableBody();
 $pdf->SignatureAndNotes();
 
 $pdf->Output('I', 'transaksi_keluar_' . $transaction['transaction_number'] . '.pdf');

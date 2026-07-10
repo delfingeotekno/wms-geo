@@ -54,6 +54,7 @@ $brand_filter = isset($_GET['brand_id']) ? (int)$_GET['brand_id'] : 0;
 $type_filter = isset($_GET['product_type_id']) ? (int)$_GET['product_type_id'] : 0;
 $stock_status_filter = isset($_GET['stock_status']) ? $_GET['stock_status'] : '';
 $show_deleted = isset($_GET['show_deleted']) ? (int)$_GET['show_deleted'] : 0;
+$hide_biaya = isset($_GET['hide_biaya']) ? (int)$_GET['hide_biaya'] : 0;
 
 // Ambil daftar merek dan tipe produk untuk filter dropdown (filtered by tenant)
 $brands_list_query = $conn->query("SELECT id, brand_name FROM brands ORDER BY brand_name");
@@ -196,6 +197,11 @@ if ($show_deleted == 0) {
 }
 // Tidak perlu else untuk "Semua", karena 1=1 sudah menangani itu.
 
+// Logika Sembunyikan BIAYA
+if ($hide_biaya == 1) {
+ $sql .= " AND SubQuery.product_code NOT LIKE 'BIAYA-%'";
+}
+
 $sql .= " ORDER BY SubQuery.updated_at DESC"; // <-- Diubah ke SubQuery
 
 // Siapkan dan jalankan statement
@@ -218,14 +224,14 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <ul class="nav nav-tabs border-0">
   <li class="nav-item">
     <a class="nav-link <?= ($active_tab === 'all') ? 'active bg-white text-dark fw-bold border-bottom-0' : 'text-muted' ?>" 
-       href="?tab=all<?= $search_term ? '&search='.urlencode($search_term) : '' ?><?= $brand_filter ? '&brand_id='.$brand_filter : '' ?><?= $type_filter ? '&product_type_id='.$type_filter : '' ?><?= $stock_status_filter ? '&stock_status='.urlencode($stock_status_filter) : '' ?><?= $show_deleted ? '&show_deleted='.$show_deleted : '' ?>">
+       href="?tab=all<?= $search_term ? '&search='.urlencode($search_term) : '' ?><?= $brand_filter ? '&brand_id='.$brand_filter : '' ?><?= $type_filter ? '&product_type_id='.$type_filter : '' ?><?= $stock_status_filter ? '&stock_status='.urlencode($stock_status_filter) : '' ?><?= $show_deleted ? '&show_deleted='.$show_deleted : '' ?><?= $hide_biaya ? '&hide_biaya=1' : '' ?>">
        Semua Lokasi Gudang
     </a>
   </li>
   <?php foreach ($warehouses_list as $wh): ?>
   <li class="nav-item">
     <a class="nav-link <?= ($active_tab == $wh['id']) ? 'active bg-white text-dark fw-bold border-bottom-0' : 'text-muted' ?>" 
-       href="?tab=<?= $wh['id'] ?><?= $search_term ? '&search='.urlencode($search_term) : '' ?><?= $brand_filter ? '&brand_id='.$brand_filter : '' ?><?= $type_filter ? '&product_type_id='.$type_filter : '' ?><?= $stock_status_filter ? '&stock_status='.urlencode($stock_status_filter) : '' ?><?= $show_deleted ? '&show_deleted='.$show_deleted : '' ?>">
+       href="?tab=<?= $wh['id'] ?><?= $search_term ? '&search='.urlencode($search_term) : '' ?><?= $brand_filter ? '&brand_id='.$brand_filter : '' ?><?= $type_filter ? '&product_type_id='.$type_filter : '' ?><?= $stock_status_filter ? '&stock_status='.urlencode($stock_status_filter) : '' ?><?= $show_deleted ? '&show_deleted='.$show_deleted : '' ?><?= $hide_biaya ? '&hide_biaya=1' : '' ?>">
        <?= htmlspecialchars($wh['name']) ?>
     </a>
   </li>
@@ -237,14 +243,14 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
   <h5 class="mb-0 fw-bold text-dark">Daftar Produk</h5>
   <div class="d-flex align-items-center">
     
-    <a href="generate_product_pdf.php?tab=<?= htmlspecialchars($active_tab) ?>&search=<?= urlencode($search_term) ?>&brand_id=<?= $brand_filter ?>&product_type_id=<?= $type_filter ?>&stock_status=<?= urlencode($stock_status_filter) ?>&show_deleted=<?= $show_deleted ?>" 
+    <a href="generate_product_pdf.php?tab=<?= htmlspecialchars($active_tab) ?>&search=<?= urlencode($search_term) ?>&brand_id=<?= $brand_filter ?>&product_type_id=<?= $type_filter ?>&stock_status=<?= urlencode($stock_status_filter) ?>&show_deleted=<?= $show_deleted ?>&hide_biaya=<?= $hide_biaya ?>" 
        target="_blank" 
        class="btn btn-danger btn-sm rounded-pill px-3 me-2" 
        id="downloadPdfBtn">
       <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
     </a>
     
-    <a href="export_excel.php?tab=<?= htmlspecialchars($active_tab) ?>&search=<?= urlencode($search_term) ?>&brand_id=<?= $brand_filter ?>&product_type_id=<?= $type_filter ?>&stock_status=<?= urlencode($stock_status_filter) ?>&show_deleted=<?= $show_deleted ?>" 
+    <a href="export_excel.php?tab=<?= htmlspecialchars($active_tab) ?>&search=<?= urlencode($search_term) ?>&brand_id=<?= $brand_filter ?>&product_type_id=<?= $type_filter ?>&stock_status=<?= urlencode($stock_status_filter) ?>&show_deleted=<?= $show_deleted ?>&hide_biaya=<?= $hide_biaya ?>" 
        class="btn btn-success btn-sm rounded-pill px-3 me-2">
       <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
     </a>
@@ -276,13 +282,13 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
  <form action="" method="GET" class="mb-4">
   <input type="hidden" name="tab" value="<?= htmlspecialchars($active_tab) ?>">
  <div class="row g-2 align-items-end">
-  <div class="col-md-4">
+  <div class="col-md-3">
   <label for="search" class="form-label">Cari Produk</label>
   <div class="input-group">
    <input type="text" class="form-control" name="search" placeholder="Cari Kode atau Nama..." value="<?= htmlspecialchars($search_term) ?>">
   </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
   <label for="brand_id" class="form-label">Merek</label>
   <select class="form-select" name="brand_id">
    <option value="">Semua Merek</option>
@@ -293,7 +299,7 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
    <?php endforeach; ?>
   </select>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
   <label for="product_type_id" class="form-label">Tipe Produk</label>
   <select class="form-select" name="product_type_id">
    <option value="">Semua Tipe</option>
@@ -304,9 +310,14 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
    <?php endforeach; ?>
   </select>
   </div>
-  <div class="col-md-2 d-flex gap-2">
+  <div class="col-md-5 d-flex gap-2 align-items-center mb-1">
   <button class="btn btn-primary" type="submit">Filter</button>
   <a href="index.php" class="btn btn-outline-danger">Reset</a>
+  
+  <div class="form-check form-switch ms-3 mb-0">
+    <input class="form-check-input" type="checkbox" id="hide_biaya" name="hide_biaya" value="1" <?= $hide_biaya ? 'checked' : '' ?> onchange="this.form.submit()">
+    <label class="form-check-label fw-bold text-muted" for="hide_biaya" style="cursor:pointer; padding-top: 2px;">Sembunyikan Produk Biaya</label>
+  </div>
   </div>
  </div>
  <div class="row g-2 mt-2">
@@ -439,10 +450,10 @@ $products = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
       <i class="bi bi-info-circle"></i>
      </button>
      
-     <?php if ($user_role != 'procurement'): ?>
-     <a href="../../product_history.php?product_id=<?= $product['id'] ?>" class="btn btn-sm btn-secondary text-white me-1" title="Lihat Histori">
-      <i class="bi bi-clock-history"></i>
-     </a>
+      <?php if ($user_role != 'procurement'): ?>
+      <a href="../../product_history.php?product_id=<?= $product['id'] ?><?= ($active_tab !== 'all') ? '&warehouse_id=' . $active_tab : '' ?>" class="btn btn-sm btn-secondary text-white me-1" title="Lihat Histori">
+       <i class="bi bi-clock-history"></i>
+      </a>
 
      <a href="edit.php?id=<?= $product['id'] ?>&tab=<?= htmlspecialchars($active_tab) ?>" class="btn btn-sm btn-warning me-1">
       <i class="bi bi-pencil"></i>

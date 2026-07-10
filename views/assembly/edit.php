@@ -191,6 +191,14 @@ while($row = $res_details->fetch_assoc()) {
                         Produk: <strong id="serialModalProductName">-</strong><br>
                         Dibutuhkan: <strong id="requiredSerialCount">0</strong> S/N | Terpilih: <strong id="selectedSerialCount">0</strong> S/N
                     </div>
+                    <div class="input-group mb-2">
+                        <span class="input-group-text bg-primary text-white"><i class="bi bi-upc-scan"></i></span>
+                        <input type="text" id="serialScannerInput" class="form-control border-primary" placeholder="Scan Barcode S/N disini lalu tekan Enter..." autofocus>
+                    </div>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="serialSearchInput" class="form-control" placeholder="Cari S/N manual...">
+                    </div>
                     <div class="row" id="serialCheckboxesContainer" style="max-height: 400px; overflow-y: auto;">
                         <!-- Checkboxes loaded via AJAX -->
                     </div>
@@ -383,7 +391,7 @@ function appendRowHtml(id, name, currentStock, maxLimit, qty, isReturnable, hasS
             <td>
                 <input type="number" name="out_qty[]" class="form-control form-control-sm out-qty-input" 
                 value="${qty}" min="1" data-stock="${maxLimit}" data-std="${qty/($(`#produced_row_${assemblyId} .assembly-multiplier`).val() || 1)}" 
-                oninput="updateSubmitButton()" ${hasSerial ? 'readonly' : ''}>
+                oninput="handleQtyChange(this)" ${(hasSerial == 1 && assemblyId) ? 'readonly' : ''}>
             </td>
             <td>
                 <select name="is_returnable[]" class="form-select form-select-sm">
@@ -399,6 +407,19 @@ function appendRowHtml(id, name, currentStock, maxLimit, qty, isReturnable, hasS
         </tr>`;
 
     $('#componentList').append(html);
+    updateSubmitButton();
+}
+
+function handleQtyChange(input) {
+    let row = $(input).closest('tr');
+    if (row.data('serial') == 1) {
+        // Jika berserial, reset pilihan SN jika qty berubah
+        row.find('.selected-serials-tags').html('<span class="text-warning">Jumlah berubah, pilih S/N kembali!</span>');
+        row.find('.serial-ids-input').val('');
+        let rowId = row.data('rowid');
+        delete productSerials[rowId];
+        row.find('.btn-text').text('Pilih S/N');
+    }
     updateSubmitButton();
 }
 
@@ -480,6 +501,54 @@ function updateModalCount() {
         $('#btnConfirmSerial').prop('disabled', true).removeClass('btn-primary').addClass('btn-secondary');
     }
 }
+
+$('#serialSearchInput').on('input', function() {
+    let val = $(this).val().toLowerCase();
+    $('.serial-item').each(function() {
+        let sn = $(this).find('.form-check-label').text().toLowerCase();
+        if (sn.includes(val)) {
+            $(this).parent('.col-md-6').removeClass('d-none');
+        } else {
+            $(this).parent('.col-md-6').addClass('d-none');
+        }
+    });
+});
+
+$('#serialScannerInput').on('keypress', function(e) {
+    if (e.which == 13) { // Enter key
+        e.preventDefault();
+        let scanned = $(this).val().trim();
+        if (scanned) {
+            let checkbox = $(`.sn-checkbox[value="${scanned}"]`);
+            if (checkbox.length) {
+                if (!checkbox.prop('checked')) {
+                    let required = parseInt($('#requiredSerialCount').text());
+                    let current = $('.sn-checkbox:checked').length;
+                    
+                    if (current < required) {
+                        checkbox.prop('checked', true).trigger('change');
+                        
+                        let item = checkbox.closest('.serial-item');
+                        item.addClass('bg-success text-white');
+                        setTimeout(() => item.removeClass('bg-success text-white'), 1000);
+                        
+                        let container = $('#serialCheckboxesContainer');
+                        container.scrollTop(
+                            container.scrollTop() + item.position().top - container.height() / 2 + item.height() / 2
+                        );
+                    } else {
+                        alert("Jumlah Serial Number sudah terpenuhi!");
+                    }
+                } else {
+                    alert("Serial Number sudah dipilih!");
+                }
+            } else {
+                alert("Serial Number tidak ditemukan atau tidak tersedia!");
+            }
+        }
+        $(this).val(''); // Clear input
+    }
+});
 
 $('#btnConfirmSerial').on('click', function() {
     let selected = [];

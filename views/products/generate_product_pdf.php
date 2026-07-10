@@ -21,6 +21,7 @@ $brand_filter = isset($_GET['brand_id']) ? (int)$_GET['brand_id'] : 0;
 $type_filter = isset($_GET['product_type_id']) ? (int)$_GET['product_type_id'] : 0;
 $stock_status_filter = isset($_GET['stock_status']) ? $_GET['stock_status'] : '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : (string)$_SESSION['warehouse_id'];
+$hide_biaya = isset($_GET['hide_biaya']) ? (int)$_GET['hide_biaya'] : 0;
 
 // Logika filter warehouse untuk perhitungan stok
 $warehouse_name_display = 'Semua Gudang';
@@ -92,6 +93,9 @@ if ($stock_status_filter) {
   } elseif ($stock_status_filter == 'safe') {
     $sql .= " AND p.stock > (p.minimum_stock_level + 10)";
   }
+}
+if ($hide_biaya == 1) {
+  $sql .= " AND p.product_code NOT LIKE 'BIAYA-%'";
 }
 $sql .= " ORDER BY p.updated_at DESC";
 

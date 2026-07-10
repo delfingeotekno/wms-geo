@@ -51,15 +51,15 @@ if (count($all_data) === 0) {
     exit;
 }
 
-// Pecah data menjadi kelompok isi 40 per halaman
-$pages = array_chunk($all_data, 40); 
+// Pecah data menjadi kelompok isi 90 per halaman (6 kolom x 15 baris)
+$pages = array_chunk($all_data, 90); 
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Print Label TJ 108 (Max 40 per Page)</title>
+    <title>Print Label Barcode (90 per Page)</title>
     <style>
         body { margin: 0; padding: 0; background-color: #f0f0f0; }
         
@@ -67,26 +67,26 @@ $pages = array_chunk($all_data, 40);
         .label-page { 
             width: 210mm; 
             height: 297mm; /* Paksa tinggi A4 */
-            padding: 12mm 5mm; /* Margin atas disesuaikan agar pas dengan kertas TJ */
-            margin: 10mm auto; 
+            padding: 8mm 5mm; /* Margin disesuaikan */
+            margin: 5mm auto; 
             background: white;
             box-sizing: border-box;
             page-break-after: always; /* Potong halaman saat print */
         }
 
-        /* Grid untuk TJ 108 (5 Kolom x 8 Baris = 40) */
+        /* Grid Dioptimalkan (6 Kolom x 15 Baris = 90) */
         .label-grid { 
             display: grid; 
-            grid-template-columns: repeat(5, 38mm); 
-            grid-template-rows: repeat(8, 18mm); /* Batasi 8 baris */
-            column-gap: 3mm;
-            row-gap: 2mm;
+            grid-template-columns: repeat(6, 31mm); 
+            grid-template-rows: repeat(15, 17mm); 
+            column-gap: 2mm;
+            row-gap: 1.5mm;
             justify-content: center;
         }
 
         .label-box {
-            width: 38mm; 
-            height: 18mm; 
+            width: 31mm; 
+            height: 17mm; 
             border: 0.1mm dashed #eee; 
             display: flex; 
             flex-direction: column; 
@@ -98,13 +98,14 @@ $pages = array_chunk($all_data, 40);
         }
 
         .product-text { 
-            font-size: 5pt; 
+            font-size: 4.5pt; 
             color: #333; 
             white-space: nowrap; 
             overflow: hidden; 
             text-overflow: ellipsis; 
             width: 100%;
             text-align: center;
+            line-height: 1;
         }
 
         .barcode-img { 
@@ -114,9 +115,10 @@ $pages = array_chunk($all_data, 40);
         }
 
         .sn-text { 
-            font-size: 7pt; 
+            font-size: 6pt; 
             font-weight: bold; 
             margin-top: 1px;
+            line-height: 1;
         }
 
         @media print {

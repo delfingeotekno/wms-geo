@@ -54,6 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query("DELETE FROM assembly_outbound_results WHERE outbound_id = $id");
         $produced_ids   = $_POST['produced_assembly_id'] ?? [];
         $produced_qtys  = $_POST['produced_total_units'] ?? [];
+        
+        $primary_assembly_id = null;
+        $primary_total_units = 0;
+
         if (!empty($produced_ids)) {
             $stmt_res = $conn->prepare("INSERT INTO assembly_outbound_results (outbound_id, assembly_id, qty) VALUES (?, ?, ?)");
             foreach ($produced_ids as $idx => $a_id) {
@@ -61,9 +65,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_res->bind_param("iii", $id, $a_id, $a_qty);
                 $stmt_res->execute();
             }
-            // Update primary assembly_id & total_units for backward compatibility
-            $conn->query("UPDATE assembly_outbound SET assembly_id = {$produced_ids[0]}, total_units = {$produced_qtys[0]} WHERE id = $id");
+            $primary_assembly_id = (int)$produced_ids[0];
+            $primary_total_units = array_sum($produced_qtys);
+        } else {
+            // Jika manual, total unit adalah jumlah komponen
+            $primary_total_units = array_sum($out_qtys);
         }
+
+        // Update Header (assembly_id & total_units)
+        $sql_upd_units = "UPDATE assembly_outbound SET assembly_id = ?, total_units = ? WHERE id = ?";
+        $stmt_upd_units = $conn->prepare($sql_upd_units);
+        $stmt_upd_units->bind_param("iii", $primary_assembly_id, $primary_total_units, $id);
+        $stmt_upd_units->execute();
 
         // --- 4. HAPUS DETAIL LAMA ---
         $conn->query("DELETE FROM assembly_outbound_items WHERE outbound_id = $id");
@@ -80,13 +93,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!empty($serials)) {
                 // Jika berserial, simpan tiap serial sebagai 1 baris
-                $stmt_ins = $conn->prepare("INSERT INTO assembly_outbound_items (outbound_id, product_id, serial_number, qty_out, is_returnable) VALUES (?, ?, ?, 1, ?)");
+                $stmt_ins = $conn->prepare("INSERT INTO assembly_outbound_items (outbound_id, product_id, serial_number, serial_id, qty_out, is_returnable) VALUES (?, ?, ?, ?, 1, ?)");
                 foreach ($serials as $sn) {
                     $sn = trim($sn);
-                    $stmt_ins->bind_param("iisi", $id, $p_id, $sn, $is_ret);
+                    
+                    // Ambil serial_id
+                    $q_sn = $conn->prepare("SELECT id FROM serial_numbers WHERE serial_number = ? AND product_id = ? AND warehouse_id = ? AND is_deleted = 0");
+                    $q_sn->bind_param("sii", $sn, $p_id, $warehouse_id);
+                    $q_sn->execute();
+                    $sn_res = $q_sn->get_result()->fetch_assoc();
+                    $sn_id = $sn_res['id'] ?? null;
+
+                    if (!$sn_id) continue; // Skip jika tidak ada (sebaiknya divalidasi di awal)
+
+                    $stmt_ins->bind_param("iisii", $id, $p_id, $sn, $sn_id, $is_ret);
                     $stmt_ins->execute();
-                    // Update status serial ke 'Keluar'
-                    $conn->query("UPDATE serial_numbers SET status = 'Keluar' WHERE serial_number = '$sn' AND product_id = $p_id");
+                    
+                    // Update status serial ke 'Keluar' + Link Transaksi
+                    $conn->query("UPDATE serial_numbers SET status = 'Keluar', last_transaction_id = $id, last_transaction_type = 'ASSY', updated_at = NOW() WHERE id = $sn_id");
                 }
             } else {
                 // Non-serial

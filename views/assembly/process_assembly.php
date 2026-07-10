@@ -24,7 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Untuk kompatibilitas tabel lama, kita isi assembly_id & total_units dengan item pertama (jika ada)
         $primary_assembly_id = !empty($produced_ids) ? $produced_ids[0] : null;
-        $primary_total_units = !empty($produced_qtys) ? $produced_qtys[0] : 0;
+        
+        // Perbaikan: Jika manual (custom), total_units diisi jumlah seluruh komponen
+        if (!empty($produced_qtys)) {
+            $primary_total_units = array_sum($produced_qtys);
+        } else {
+            $primary_total_units = array_sum($_POST['out_qty'] ?? []);
+        }
 
         // 2. Simpan Header Transaksi
         $stmt = $conn->prepare("INSERT INTO assembly_outbound (transaction_no, assembly_id, total_units, project_name, user_id, warehouse_id) VALUES (?, ?, ?, ?, ?, ?)");
@@ -85,8 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt_item->execute();
 
                     // Update status serial number
-                    $upd_sn = $conn->prepare("UPDATE serial_numbers SET status = 'Keluar', is_deleted = 1, updated_at = NOW() WHERE id = ?");
-                    $upd_sn->bind_param("i", $sn_id);
+                    $upd_sn = $conn->prepare("UPDATE serial_numbers SET status = 'Keluar', last_transaction_id = ?, last_transaction_type = 'ASSY', updated_at = NOW() WHERE id = ?");
+                    $upd_sn->bind_param("ii", $outbound_id, $sn_id);
                     $upd_sn->execute();
                 }
             } else {

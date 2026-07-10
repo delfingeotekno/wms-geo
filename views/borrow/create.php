@@ -67,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $camera_photo_data = $_POST['camera_photo_data'] ?? null;
     $photo_upload_exists = isset($_FILES['photo_upload']) && $_FILES['photo_upload']['error'] == 0;
 
-    if (empty($borrower_name) || empty($warehouse_id) || empty($items) || (empty($camera_photo_data) && !$photo_upload_exists)) {
-        $message = 'Mohon lengkapi data dan lampirkan foto.';
+    if (empty($borrower_name) || empty($warehouse_id) || empty($items)) {
+        $message = 'Mohon lengkapi data peminjaman dan tambahkan setidaknya satu item.';
         $message_type = 'danger';
     } else {
         $conn->begin_transaction();

@@ -40,7 +40,7 @@ function generateTransactionNumber($conn, $warehouse_id) {
     $roman_month = convertToRoman(date('n'));
     $year = date('Y');
     // Adjust the prefix for the LIKE query to find the last transaction number
-    $prefix = "%/{$prefix_type}/{$roman_month}/{$year}";
+    $prefix = "%/{$prefix_type}/%/%";
 
     // Query to find the last transaction number with the new format
     $sql = "SELECT transaction_number FROM outbound_transactions WHERE transaction_number LIKE ? ORDER BY id DESC LIMIT 1";
@@ -80,7 +80,7 @@ function generateBastNumber($conn, $warehouse_id) {
     $roman_month = convertToRoman(date('n'));
     $year = date('Y');
     // Adjust the prefix for the LIKE query to find the last BAST number
-    $prefix = "%/{$prefix_type}/{$roman_month}/{$year}";
+    $prefix = "%/{$prefix_type}/%/%";
 
     // Query to find the last BAST number
     // Uses the bast_number column which must exist (see schema note above)
@@ -149,8 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $photo_data_url = $_POST['transaction_photo_data'] ?? NULL;
     $items = json_decode($_POST['items_json'], true);
 
-    if (empty($recipient) || empty($transaction_date) || empty($items) || empty($photo_data_url) || empty($warehouse_id)) {
-        $message = 'Mohon lengkapi semua data transaksi dan tambahkan setidaknya satu item. Foto transaksi juga wajib disertakan.';
+    if (empty($recipient) || empty($transaction_date) || empty($items) || empty($warehouse_id)) {
+        $message = 'Mohon lengkapi semua data transaksi dan tambahkan setidaknya satu item.';
         $message_type = 'danger';
     } else {
         $conn->begin_transaction();
@@ -207,7 +207,10 @@ foreach ($items as $item) {
             }
 
             // 2. SIMPAN HEADER TRANSAKSI
-            $transaction_photo_filename = saveBase64Image($photo_data_url, __DIR__ . '/../../uploads/outbound_photos', 'out_');
+            $transaction_photo_filename = null;
+            if (!empty($photo_data_url)) {
+                $transaction_photo_filename = saveBase64Image($photo_data_url, __DIR__ . '/../../uploads/outbound_photos', 'out_');
+            }
             
             $insert_transaction_sql = "INSERT INTO outbound_transactions (transaction_number, transaction_date, recipient, po_number, reference, bast_number, subject, notes, total_items, created_by, is_deleted, photo_url, warehouse_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt_transaction = $conn->prepare($insert_transaction_sql);
@@ -724,14 +727,29 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             // Logika Auto-Increment untuk non-serial
             const existing = transactionItems.find(i => i.product_id === data.product_id && i.type === 'non-serial');
+            const addQty = parseInt(data.qty) || 1;
             if (existing) {
-                existing.qty += 1;
+                existing.qty += addQty;
             } else {
-                transactionItems.push({ ...data, qty: 1 });
+                transactionItems.push({ ...data, qty: addQty });
             }
         }
         renderTable();
     }
+
+    // Fungsi global untuk update qty saat user mengubah input di tabel
+    window.updateItemQty = function(index, newQty) {
+        const qty = parseInt(newQty);
+        if (isNaN(qty) || qty <= 0) {
+            alert("Jumlah minimal adalah 1");
+            renderTable(); // Kembalikan ke angka sebelumnya
+            return;
+        }
+        if (transactionItems[index]) {
+            transactionItems[index].qty = qty;
+            itemsJsonInput.value = JSON.stringify(transactionItems);
+        }
+    };
 
     function renderTable() {
         itemsTableBody.innerHTML = '';

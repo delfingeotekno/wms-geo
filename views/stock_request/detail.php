@@ -23,6 +23,8 @@ $sql_req = "SELECT
                     WHEN sr.status = 'Draft' THEN 'bg-secondary'
                     WHEN sr.status = 'Pending' THEN 'bg-warning text-dark'
                     WHEN sr.status = 'Approved' THEN 'bg-success'
+                    WHEN sr.status = 'Partial' THEN 'bg-primary'
+                    WHEN sr.status = 'Completed' THEN 'bg-dark'
                     WHEN sr.status = 'Rejected' THEN 'bg-danger'
                     ELSE 'bg-info text-dark'
                 END AS badge_class
@@ -70,9 +72,11 @@ $stmt_det->close();
             </a>
         <?php endif; ?>
 
+        <?php if ($request['status'] != 'Pending'): ?>
         <a href="download_pdf.php?id=<?= $request['id'] ?>" class="btn btn-danger btn-sm rounded-pill px-3" target="_blank">
             <i class="bi bi-file-earmark-pdf me-1"></i> Unduh PDF
         </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -136,10 +140,11 @@ $stmt_det->close();
                             <tr>
                                 <th>Nama Item</th>
                                 <th>Spec</th>
-                                <th class="text-center">Stock</th>
                                 <th class="text-center">Req Qty</th>
+                                <th class="text-center">Rcv Qty</th>
                                 <th>Unit</th>
-                                <th>Notes</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -155,10 +160,23 @@ $stmt_det->close();
                                         <?php endif; ?>
                                     </td>
                                     <td><?= htmlspecialchars($item['specification'] ?? '-') ?></td>
-                                    <td class="text-center"><?= htmlspecialchars($item['current_stock']) ?></td>
                                     <td class="text-center fw-bold"><?= htmlspecialchars($item['requested_qty']) ?></td>
+                                    <td class="text-center text-success fw-bold"><?= htmlspecialchars($item['received_qty'] ?? 0) ?></td>
                                     <td><?= htmlspecialchars($item['unit'] ?? '-') ?></td>
-                                    <td><small><?= htmlspecialchars($item['item_notes'] ?? '-') ?></small></td>
+                                    <td>
+                                        <?php if (($item['status'] ?? 'Pending') == 'Completed'): ?>
+                                            <span class="badge bg-success">Selesai</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-nowrap">
+                                        <?php if (in_array($request['status'], ['Approved', 'Partial']) && ($item['status'] ?? 'Pending') != 'Completed'): ?>
+                                            <button class="btn btn-primary btn-sm rounded-pill px-2" onclick="showReceiveModal(<?= $item['id'] ?>, <?= $item['requested_qty'] - ($item['received_qty'] ?? 0) ?>)"><i class="bi bi-box-arrow-in-down me-1"></i>Terima</button>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -168,5 +186,50 @@ $stmt_det->close();
         </div>
     </div>
 </div>
+
+<!-- Receive Modal -->
+<div class="modal fade" id="receiveModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <form action="receive_item.php" method="POST" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Terima Barang</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="detail_id" id="receive_detail_id">
+                <input type="hidden" name="request_id" value="<?= $request['id'] ?>">
+                <div class="mb-3">
+                    <label>Jumlah Diterima</label>
+                    <input type="number" name="received_qty" id="receive_qty_input" class="form-control" min="1" required>
+                    <small class="text-muted">Maksimal: <span id="max_qty_text"></span></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary w-100 rounded-pill">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showReceiveModal(detailId, maxQty) {
+    document.getElementById('receive_detail_id').value = detailId;
+    const input = document.getElementById('receive_qty_input');
+    input.max = maxQty;
+    input.value = maxQty; // Default to max
+    document.getElementById('max_qty_text').innerText = maxQty;
+    new bootstrap.Modal(document.getElementById('receiveModal')).show();
+}
+
+// Check for status messages
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('status') === 'received_success') {
+    Swal.fire('Berhasil!', 'Barang telah diterima dan status diperbarui.', 'success');
+    window.history.replaceState(null, '', window.location.pathname + '?id=<?= $request['id'] ?>');
+} else if (urlParams.get('status') === 'received_error') {
+    Swal.fire('Gagal!', 'Terjadi kesalahan saat menerima barang.', 'error');
+    window.history.replaceState(null, '', window.location.pathname + '?id=<?= $request['id'] ?>');
+}
+</script>
 
 <?php include '../../includes/footer.php'; ?>

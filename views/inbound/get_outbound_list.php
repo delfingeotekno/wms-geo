@@ -10,11 +10,15 @@ if (strlen($term) < 2 || $warehouse_id <= 0) {
 }
 
 $search = "%{$term}%";
-// Cari berdasarkan nomor transaksi atau nama penerima
+// Cari berdasarkan nomor transaksi atau nama penerima, abaikan yang sudah pernah direturn
 $sql = "SELECT transaction_number, recipient FROM outbound_transactions 
         WHERE is_deleted = 0 
         AND warehouse_id = ? 
         AND (transaction_number LIKE ? OR recipient LIKE ?) 
+        AND transaction_number NOT IN (
+            SELECT DISTINCT document_number FROM inbound_transactions 
+            WHERE transaction_type = 'RET' AND is_deleted = 0 AND document_number IS NOT NULL
+        )
         ORDER BY id DESC LIMIT 20";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("iss", $warehouse_id, $search, $search);

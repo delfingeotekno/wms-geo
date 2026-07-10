@@ -26,10 +26,22 @@ function generateRequestNumber($conn, $wh_id) {
     $m_roman = $roman_months[date('n')];
     $year = date('Y');
 
-    $count_res = $conn->query("SELECT COUNT(*) FROM stock_requests WHERE YEAR(created_at) = $year");
-    $count = $count_res->fetch_row()[0];
+    // Cari request_number terakhir di tahun berjalan
+    $prefix = "FRS/%/%/%/$year";
+    $stmt = $conn->prepare("SELECT request_number FROM stock_requests WHERE request_number LIKE ? ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("s", $prefix);
+    $stmt->execute();
+    $res_num = $stmt->get_result();
+    $last_number = 0;
+    if ($row_num = $res_num->fetch_assoc()) {
+        $parts = explode('/', $row_num['request_number']);
+        if (isset($parts[1])) {
+            $last_number = (int)$parts[1];
+        }
+    }
+    $stmt->close();
     
-    $next_num = str_pad($count + 1, 3, '0', STR_PAD_LEFT);
+    $next_num = str_pad($last_number + 1, 3, '0', STR_PAD_LEFT);
     return "FRS/$next_num/$code/$m_roman/$year";
 }
 

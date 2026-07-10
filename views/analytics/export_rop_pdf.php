@@ -128,6 +128,75 @@ class ROPPDF extends FPDF {
         $this->SetFont('Arial', 'I', 8);
         $this->Cell(0, 10, 'Halaman ' . $this->PageNo() . '/{nb}', 0, 0, 'C');
     }
+
+    // Helper to calculate number of lines needed for a MultiCell
+    function NbLines($w, $txt) {
+        $cw = &$this->CurrentFont['cw'];
+        if($w==0) $w = $this->w-$this->rMargin-$this->x;
+        $wmax = ($w-2*$this->cMargin)*1000/$this->FontSize;
+        $s = str_replace("\r", '', (string)$txt);
+        $nb = strlen($s);
+        if($nb>0 && $s[$nb-1]=="\n") $nb--;
+        $sep = -1;
+        $i = 0; $j = 0; $l = 0; $nl = 1;
+        while($i<$nb) {
+            $c = $s[$i];
+            if($c=="\n") { $i++; $sep = -1; $j = $i; $l = 0; $nl++; continue; }
+            if($c==' ') $sep = $i;
+            $l += $cw[$c];
+            if($l>$wmax) {
+                if($sep==-1) { if($i==$j) $i++; }
+                else $i = $sep+1;
+                $sep = -1; $j = $i; $l = 0; $nl++;
+            } else $i++;
+        }
+        return $nl;
+    }
+
+    // Row function to handle MultiCell cells
+    function Row($widths, $data, $fill = false, $isCritical = false) {
+        // Calculate the height of the row
+        $nb = 0;
+        // Check only the columns that can wrap (index 1 is Product Name)
+        $nb = max($nb, $this->NbLines($widths[1], $data[1]));
+        $h = 5 * $nb;
+        if ($h < 7) $h = 7; // Minimum height
+        
+        // Issue a page break first if needed
+        if($this->GetY()+$h > $this->PageBreakTrigger) $this->AddPage($this->CurOrientation);
+        
+        // Draw the cells
+        for($i=0;$i<count($data);$i++) {
+            $w=$widths[$i];
+            $a=isset($this->aligns[$i]) ? $this->aligns[$i] : (($i == 1) ? 'L' : 'C');
+            
+            // Save the current position
+            $x=$this->GetX();
+            $y=$this->GetY();
+            
+            // Draw the border and fill
+            if ($fill) {
+                $this->Rect($x, $y, $w, $h, 'DF');
+            } else {
+                $this->Rect($x, $y, $w, $h);
+            }
+            
+            // Print the text
+            if ($i == 1) { // MultiCell for product name
+                $this->MultiCell($w, 5, $data[$i], 0, $a);
+            } else {
+                // For 'Stok Akhir' (index 10), make it bold if critical
+                if ($i == 10 && $isCritical) $this->SetFont('Arial', 'B', 8);
+                $this->Cell($w, $h, $data[$i], 0, 0, $a);
+                if ($i == 10 && $isCritical) $this->SetFont('Arial', '', 8);
+            }
+            
+            // Put the position to the right of the cell
+            $this->SetXY($x+$w,$y);
+        }
+        // Go to the next line
+        $this->Ln($h);
+    }
 }
 
 $pdf = new ROPPDF('L', 'mm', 'A4');
@@ -177,33 +246,26 @@ foreach ($products as $row) {
         $fill = false;
     }
     
-    $pdf->Cell($widths[0], 7, $i++, 1, 0, 'C', $fill);
-    
-    // MultiCell simulation for Product Name
-    $name = $row['product_name'] . " (" . ($row['type_name'] ?? '-') . ")";
-    $x = $pdf->GetX();
-    $y = $pdf->GetY();
-    $pdf->Rect($x, $y, $widths[1], 7, $fill ? 'DF' : '');
-    $pdf->SetXY($x, $y);
-    $pdf->MultiCell($widths[1], 3.5, $name, 0, 'L');
-    $pdf->SetXY($x + $widths[1], $y);
-    
-    $pdf->Cell($widths[2], 7, $row['lead_time_avg'], 1, 0, 'C', $fill);
-    $pdf->Cell($widths[3], 7, $row['lead_time_max'], 1, 0, 'C', $fill);
-    $pdf->Cell($widths[4], 7, number_format($vlead_time, 2), 1, 0, 'C', $fill);
-    $pdf->Cell($widths[5], 7, number_format($sum_n, 0), 1, 0, 'C', $fill);
-    $pdf->Cell($widths[6], 7, number_format($avg_daily, 2), 1, 0, 'C', $fill);
-    $pdf->Cell($widths[7], 7, number_format($stddev, 2), 1, 0, 'C', $fill);
-    $pdf->Cell($widths[8], 7, number_format($safetyStock, 2), 1, 0, 'C', $fill);
-    $pdf->Cell($widths[9], 7, number_format($rop, 2), 1, 0, 'C', $fill);
-    
-    // Stok Akhir: Bold if critical
-    if ($isCritical) $pdf->SetFont('Arial', 'B', 8);
-    $pdf->Cell($widths[10], 7, $stock, 1, 0, 'C', $fill);
-    $pdf->SetFont('Arial', '', 8);
-    
     $statusText = $isCritical ? 'REORDER!' : 'AMAN';
-    $pdf->Cell($widths[11], 7, $statusText, 1, 1, 'C', $fill);
+    $name = $row['product_name'] . " (" . ($row['type_name'] ?? '-') . ")";
+
+    // Prepare data row
+    $data_row = [
+        $i++,
+        $name,
+        $row['lead_time_avg'],
+        $row['lead_time_max'],
+        number_format($vlead_time, 2),
+        number_format($sum_n, 0),
+        number_format($avg_daily, 2),
+        number_format($stddev, 2),
+        number_format($safetyStock, 2),
+        number_format($rop, 2),
+        $stock,
+        $statusText
+    ];
+
+    $pdf->Row($widths, $data_row, $fill, $isCritical);
 }
 
 $pdf->Output('I', 'Laporan_ROP.pdf');

@@ -68,6 +68,29 @@ try {
             $sn = $sn_row['serial_number'];
             $stmt_sn_upd->bind_param("isi", $dest_wh, $sn, $p_id);
             $stmt_sn_upd->execute();
+            
+            if ($stmt_sn_upd->affected_rows === 0) {
+                // Jika serial number tidak ditemukan di database (misal karena terhapus)
+                $stmt_chk = $conn->prepare("SELECT id FROM serial_numbers WHERE serial_number = ? AND product_id = ?");
+                $stmt_chk->bind_param("si", $sn, $p_id);
+                $stmt_chk->execute();
+                $res_chk = $stmt_chk->get_result();
+                
+                if ($res_chk->num_rows === 0) {
+                    // Buat baru jika belum ada
+                    $stmt_ins = $conn->prepare("INSERT INTO serial_numbers (product_id, warehouse_id, serial_number, status, is_deleted, created_at, updated_at) VALUES (?, ?, ?, 'Tersedia', 0, NOW(), NOW())");
+                    $stmt_ins->bind_param("iis", $p_id, $dest_wh, $sn);
+                    $stmt_ins->execute();
+                    $stmt_ins->close();
+                } else {
+                    // Re-aktifkan dan pindahkan gudang jika sudah ada tapi statusnya berbeda atau terhapus
+                    $stmt_reactivate = $conn->prepare("UPDATE serial_numbers SET status = 'Tersedia', warehouse_id = ?, is_deleted = 0, updated_at = NOW() WHERE serial_number = ? AND product_id = ?");
+                    $stmt_reactivate->bind_param("isi", $dest_wh, $sn, $p_id);
+                    $stmt_reactivate->execute();
+                    $stmt_reactivate->close();
+                }
+                $stmt_chk->close();
+            }
         }
     }
 

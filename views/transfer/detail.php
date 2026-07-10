@@ -74,6 +74,9 @@ if ($trf['status'] === 'In Transit' && ($_SESSION['role'] === 'admin' || $_SESSI
             <h2 class="h4 fw-bold mb-0">Detail Mutasi: <?= $trf['transfer_no'] ?></h2>
         </div>
         <div class="d-flex gap-2">
+            <a href="create_packing_slip.php?id=<?= $transfer_id ?>" class="btn btn-warning shadow-sm fw-bold">
+                <i class="bi bi-box-seam me-1"></i> Buat / Lihat Packing Slip
+            </a>
             <a href="download_pdf.php?id=<?= $transfer_id ?>" target="_blank" class="btn btn-primary shadow-sm fw-bold">
                 <i class="bi bi-file-pdf me-1"></i> Unduh PDF TAG
             </a>

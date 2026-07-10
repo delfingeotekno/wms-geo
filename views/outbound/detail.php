@@ -61,14 +61,37 @@ $details_query = "SELECT
     p.has_serial
 FROM outbound_transaction_details td
 JOIN products p ON td.product_id = p.id
-JOIN outbound_transactions ot ON td.transaction_id = ot.id
 WHERE td.transaction_id = ?";
 
 $stmt_details = $conn->prepare($details_query);
 $stmt_details->bind_param("i", $transaction_id);
 $stmt_details->execute();
-$details = $stmt_details->get_result()->fetch_all(MYSQLI_ASSOC);
+$details_raw = $stmt_details->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt_details->close();
+
+// --- LOGIKA PENGELOMPOKAN ITEM (Grouping) ---
+$grouped_details = [];
+foreach ($details_raw as $row) {
+    $key = $row['product_id'];
+    
+    if (!isset($grouped_details[$key])) {
+        $grouped_details[$key] = [
+            'product_name' => $row['product_name'],
+            'product_code' => $row['product_code'],
+            'quantity' => 0,
+            'serial_numbers' => [],
+            'has_serial' => $row['has_serial'],
+        ];
+    }
+    
+    $grouped_details[$key]['quantity'] += $row['quantity'];
+    
+    if ($row['has_serial'] == 1 && !empty($row['serial_number'])) {
+        $grouped_details[$key]['serial_numbers'][] = $row['serial_number'];
+    }
+}
+$details = array_values($grouped_details);
+// --- AKHIR LOGIKA PENGELOMPOKAN ---
 
 // Path relatif ke foto
 $photo_path = $transaction['photo_url'] ? '../../uploads/outbound_photos/' . htmlspecialchars($transaction['photo_url']) : null;
@@ -174,11 +197,18 @@ $photo_path = $transaction['photo_url'] ? '../../uploads/outbound_photos/' . htm
                         <?php $no = 1; ?>
                         <?php foreach ($details as $detail): ?>
                             <tr>
-                                <td><?= $no++ ?></td>
+                                <td class="text-center"><?= $no++ ?></td>
                                 <td><?= htmlspecialchars($detail['product_code']) ?></td>
                                 <td><?= htmlspecialchars($detail['product_name']) ?></td>
-                                <td><?= htmlspecialchars($detail['quantity']) ?></td>
-                                <td><?= $detail['serial_number'] ? htmlspecialchars($detail['serial_number']) : '-' ?></td>
+                                <td class="text-center"><?= htmlspecialchars($detail['quantity']) ?></td>
+                                <td>
+                                    <?php if (!empty($detail['serial_numbers'])): ?>
+                                        <div class="small text-muted">S/N:</div>
+                                        <?= htmlspecialchars(implode(", ", $detail['serial_numbers'])) ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         <?php if (empty($details)): ?>

@@ -18,16 +18,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($action)) {
     $subtotal_h     = $_POST['total_before_tax']; 
     $ppn            = $_POST['ppn_amount'];
     $grand_total    = $_POST['grand_total'];
+    $shipping_cost  = $_POST['shipping_cost'] ?? 0;
+    $service_fee    = $_POST['service_fee'] ?? 0;
     $notes          = $_POST['notes'];
     $status         = 'Pending';
 
     $conn->begin_transaction();
 
     try {
-        $sql_po = "INSERT INTO purchase_orders (po_number, vendor_id, po_date, pic_name, reference, total_before_tax, ppn_amount, grand_total, status, created_by, notes, created_at) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        $sql_po = "INSERT INTO purchase_orders (po_number, vendor_id, po_date, pic_name, reference, total_before_tax, ppn_amount, grand_total, shipping_cost, service_fee, status, created_by, notes, created_at) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $conn->prepare($sql_po);
-        $stmt->bind_param("sisssdddsss", $po_number, $vendor_id, $po_date, $pic_name, $reference, $subtotal_h, $ppn, $grand_total, $status, $user_name, $notes);
+        $stmt->bind_param("sisssdddddsss", $po_number, $vendor_id, $po_date, $pic_name, $reference, $subtotal_h, $ppn, $grand_total, $shipping_cost, $service_fee, $status, $user_name, $notes);
         $stmt->execute();
         
         $po_id = $conn->insert_id;
@@ -41,10 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($action)) {
         $stmt_item = $conn->prepare($sql_item);
 
         for ($i = 0; $i < count($product_ids); $i++) {
-            $p_id   = $product_ids[$i];
-            $q      = $qtys[$i];
-            $p      = $prices[$i];
-            $d      = $discounts[$i];
+            $p_id   = (int)$product_ids[$i];
+            $q      = (float)$qtys[$i];
+            $p      = (float)$prices[$i];
+            $d      = (float)($discounts[$i] ?? 0);
             $sub    = ($q * $p) - $d;
 
             $stmt_item->bind_param("iiiddd", $po_id, $p_id, $q, $p, $d, $sub);
@@ -71,6 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action == 'update') {
     $subtotal_h  = $_POST['total_before_tax'];
     $ppn         = $_POST['ppn_amount'];
     $grand_total = $_POST['grand_total'];
+    $shipping_cost = $_POST['shipping_cost'] ?? 0;
+    $service_fee   = $_POST['service_fee'] ?? 0;
     $notes       = $_POST['notes'];
 
     $conn->begin_transaction();
@@ -84,11 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action == 'update') {
                             total_before_tax = ?, 
                             ppn_amount = ?, 
                             grand_total = ?, 
+                            shipping_cost = ?,
+                            service_fee = ?,
                             notes = ? 
                           WHERE id = ?";
         
         $stmt = $conn->prepare($sql_update_po);
-        $stmt->bind_param("isssdddsi", $vendor_id, $po_date, $pic_name, $reference, $subtotal_h, $ppn, $grand_total, $notes, $po_id);
+        $stmt->bind_param("isssdddddsi", $vendor_id, $po_date, $pic_name, $reference, $subtotal_h, $ppn, $grand_total, $shipping_cost, $service_fee, $notes, $po_id);
         $stmt->execute();
 
         // Hapus item lama dan masukkan yang baru (sederhana) - security check via po_id
@@ -103,10 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action == 'update') {
         $stmt_item = $conn->prepare($sql_item);
 
         for ($i = 0; $i < count($product_ids); $i++) {
-            $p_id   = $product_ids[$i];
-            $q      = $qtys[$i];
-            $p      = $prices[$i];
-            $d      = $discounts[$i];
+            $p_id   = (int)$product_ids[$i];
+            $q      = (float)$qtys[$i];
+            $p      = (float)$prices[$i];
+            $d      = (float)($discounts[$i] ?? 0);
             $sub    = ($q * $p) - $d;
 
             $stmt_item->bind_param("iiiddd", $po_id, $p_id, $q, $p, $d, $sub);

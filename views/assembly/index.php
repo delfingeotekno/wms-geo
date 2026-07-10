@@ -62,79 +62,154 @@ if ($active_tab !== 'all') {
         </div>
     </div>
 
-    <!-- DYNAMIC ASSEMBLY CARDS -->
-    <div class="row mb-4">
-        <?php
-        $wh_condition = ($active_tab !== 'all') ? " AND warehouse_id = $filter_warehouse_id" : "";
+    <!-- DYNAMIC ASSEMBLY CARDS GROUPED BY CATEGORY -->
+    <?php
+    $wh_condition = ($active_tab !== 'all') ? " AND warehouse_id = $filter_warehouse_id" : "";
+    
+    $sql_cards = "
+        SELECT 
+            a.id, 
+            a.assembly_name,
+            (
+                SELECT IFNULL(MIN(
+                    FLOOR(
+                        (SELECT IFNULL(SUM(stock), 0) FROM warehouse_stocks WHERE product_id = ad.product_id $wh_condition) 
+                        / NULLIF(ad.default_quantity, 0)
+                    )
+                ), 0)
+                FROM assembly_details ad
+                WHERE ad.assembly_id = a.id
+            ) as potential_build,
+            (
+                SELECT IFNULL(SUM(aor.qty - aor.received_qty), 0)
+                FROM assembly_outbound_results aor
+                JOIN assembly_outbound ao ON aor.outbound_id = ao.id
+                WHERE aor.assembly_id = a.id AND ao.status = 'Pending'
+                $warehouse_filter_sql
+            ) as wip_qty,
+            (
+                SELECT IFNULL(SUM(stock), 0) 
+                FROM warehouse_stocks ws
+                WHERE ws.product_id = a.finished_product_id $wh_condition
+            ) as finished_stock
+        FROM assemblies a
+        ORDER BY a.assembly_name ASC
+    ";
+    $res_cards = $conn->query($sql_cards);
+    
+    $grouped_cards = [];
+    if ($res_cards && $res_cards->num_rows > 0) {
+        while ($card = $res_cards->fetch_assoc()) {
+            $category = 'LAIN-LAIN';
+            $name_upper = strtoupper(trim($card['assembly_name']));
+            if (strpos($name_upper, 'PANEL') === 0) {
+                $category = 'PANEL';
+            } elseif (strpos($name_upper, 'ANTENNA') === 0 || strpos($name_upper, 'ANTENA') === 0) {
+                $category = 'ANTENNA';
+            } elseif (strpos($name_upper, 'SENSOR') === 0) {
+                $category = 'SENSOR';
+            } elseif (strpos($name_upper, 'KABEL') === 0) {
+                $category = 'KABEL & CONNECTOR';
+            }
+            
+            $grouped_cards[$category][] = $card;
+        }
+    }
+    
+    // Category details config
+    $category_config = [
+        'ANTENNA' => [
+            'title' => 'Antenna Tracking',
+            'icon' => 'bi-broadcast',
+            'color' => 'info',
+            'bg_class' => 'bg-info-subtle text-info border-info'
+        ],
+        'PANEL' => [
+            'title' => 'Panel System',
+            'icon' => 'bi-cpu',
+            'color' => 'primary',
+            'bg_class' => 'bg-primary-subtle text-primary border-primary'
+        ],
+        'SENSOR' => [
+            'title' => 'Sensor & Indicator',
+            'icon' => 'bi-activity',
+            'color' => 'warning',
+            'bg_class' => 'bg-warning-subtle text-warning-emphasis border-warning'
+        ],
+        'KABEL & CONNECTOR' => [
+            'title' => 'Kabel & Connector',
+            'icon' => 'bi-usb-plug',
+            'color' => 'success',
+            'bg_class' => 'bg-success-subtle text-success border-success'
+        ],
+        'LAIN-LAIN' => [
+            'title' => 'Lain-lain',
+            'icon' => 'bi-box',
+            'color' => 'secondary',
+            'bg_class' => 'bg-secondary-subtle text-secondary border-secondary'
+        ]
+    ];
+    
+    $category_order = ['ANTENNA', 'PANEL', 'SENSOR', 'KABEL & CONNECTOR', 'LAIN-LAIN'];
+    $has_any_card = false;
+    
+    foreach ($category_order as $cat_key):
+        if (isset($grouped_cards[$cat_key]) && !empty($grouped_cards[$cat_key])):
+            $has_any_card = true;
+            $conf = $category_config[$cat_key];
+            $count = count($grouped_cards[$cat_key]);
+    ?>
+        <!-- SECTION: <?= htmlspecialchars($cat_key) ?> -->
+        <div class="d-flex align-items-center mb-3 mt-2">
+            <div class="category-icon-wrapper d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; border-radius: 8px; background: rgba(var(--bs-<?= $conf['color'] ?>-rgb), 0.1); color: var(--bs-<?= $conf['color'] ?>);">
+                <i class="bi <?= $conf['icon'] ?> fs-6"></i>
+            </div>
+            <h6 class="fw-bold mb-0 text-gray-800 text-uppercase" style="letter-spacing: 0.5px;"><?= htmlspecialchars($conf['title']) ?></h6>
+            <span class="badge rounded-pill ms-2 <?= $conf['bg_class'] ?> border" style="font-size: 0.7rem;"><?= $count ?></span>
+        </div>
         
-        $sql_cards = "
-            SELECT 
-                a.id, 
-                a.assembly_name,
-                (
-                    SELECT IFNULL(MIN(
-                        FLOOR(
-                            (SELECT IFNULL(SUM(stock), 0) FROM warehouse_stocks WHERE product_id = ad.product_id $wh_condition) 
-                            / NULLIF(ad.default_quantity, 0)
-                        )
-                    ), 0)
-                    FROM assembly_details ad
-                    WHERE ad.assembly_id = a.id
-                ) as potential_build,
-                (
-                    SELECT IFNULL(SUM(aor.qty), 0)
-                    FROM assembly_outbound_results aor
-                    JOIN assembly_outbound ao ON aor.outbound_id = ao.id
-                    WHERE aor.assembly_id = a.id AND ao.status = 'Pending'
-                    $warehouse_filter_sql
-                ) as wip_qty,
-                (
-                    SELECT IFNULL(SUM(stock), 0) 
-                    FROM warehouse_stocks ws
-                    WHERE ws.product_id = a.finished_product_id $wh_condition
-                ) as finished_stock
-            FROM assemblies a
-            ORDER BY a.assembly_name ASC
-        ";
-        $res_cards = $conn->query($sql_cards);
-        
-        if ($res_cards && $res_cards->num_rows > 0):
-            while($card = $res_cards->fetch_assoc()):
+        <div class="row mb-4">
+            <?php foreach ($grouped_cards[$cat_key] as $card):
                 // Warna card berdasarkan potensi rakitan
                 $card_color = ($card['potential_build'] > 0) ? 'info' : 'secondary';
-        ?>
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm border-left-<?= $card_color ?> h-100">
-                <div class="card-body py-3">
-                    <div class="text-dark fw-bold text-uppercase text-truncate mb-2" title="<?= htmlspecialchars($card['assembly_name']) ?>" style="font-size: 0.8rem;">
-                        <i class="bi bi-box-seam text-<?= $card_color ?> me-1"></i> <?= htmlspecialchars($card['assembly_name']) ?>
-                    </div>
-                    <div class="row g-0 align-items-center mt-2">
-                        <div class="col-4">
-                            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase;">Stok Jadi</div>
-                            <div class="h5 fw-bold text-success mb-0"><?= number_format($card['finished_stock']) ?></div>
+            ?>
+            <div class="col-md-3 mb-3">
+                <div class="card border-0 shadow-sm border-left-<?= $card_color ?> h-100">
+                    <div class="card-body py-3">
+                        <div class="text-dark fw-bold text-uppercase text-truncate mb-2" title="<?= htmlspecialchars($card['assembly_name']) ?>" style="font-size: 0.8rem;">
+                            <i class="bi bi-box-seam text-<?= $card_color ?> me-1"></i> <?= htmlspecialchars($card['assembly_name']) ?>
                         </div>
-                        <div class="col-4 border-start ps-2">
-                            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Stock Rakit</div>
-                            <div class="h5 fw-bold text-<?= $card_color ?> mb-0"><?= number_format($card['potential_build']) ?></div>
-                        </div>
-                        <div class="col-4 border-start ps-2">
-                            <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Sedang Dirakit</div>
-                            <div class="h5 fw-bold text-warning mb-0"><?= number_format($card['wip_qty']) ?></div>
+                        <div class="row g-0 align-items-center mt-2">
+                            <div class="col-4">
+                                <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase;">Stok Jadi</div>
+                                <div class="h5 fw-bold text-success mb-0"><?= number_format($card['finished_stock']) ?></div>
+                            </div>
+                            <div class="col-4 border-start ps-2">
+                                <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Stock Rakit</div>
+                                <div class="h5 fw-bold text-<?= $card_color ?> mb-0"><?= number_format($card['potential_build']) ?></div>
+                            </div>
+                            <div class="col-4 border-start ps-2">
+                                <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Sedang Dirakit</div>
+                                <div class="h5 fw-bold text-warning mb-0"><?= number_format($card['wip_qty']) ?></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+            <?php endforeach; ?>
         </div>
-        <?php 
-            endwhile;
-        else:
-        ?>
-        <div class="col-12">
-            <div class="alert alert-light border small text-muted"><i class="bi bi-info-circle me-1"></i> Belum ada Master Data Rakitan. Silakan ke halaman Master Data.</div>
+    <?php 
+        endif;
+    endforeach;
+    
+    if (!$has_any_card):
+    ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-light border small text-muted"><i class="bi bi-info-circle me-1"></i> Belum ada Master Data Rakitan. Silakan ke halaman Master Data.</div>
+            </div>
         </div>
-        <?php endif; ?>
-    </div>
+    <?php endif; ?>
 
     <div class="card border-0 shadow-sm bg-light-info mb-4">
         <div class="card-body py-3 d-flex align-items-center">
@@ -175,7 +250,7 @@ if ($active_tab !== 'all') {
                         <?php
                         $sql = "SELECT ao.*, 
                                        GROUP_CONCAT(CONCAT(a.assembly_name, ' (', aor.qty, ')') SEPARATOR ', ') as multi_assemblies,
-                                       SUM(aor.qty) as total_units_sum
+                                       IFNULL(SUM(aor.qty), ao.total_units) as total_units_sum
                                 FROM assembly_outbound ao 
                                 LEFT JOIN assembly_outbound_results aor ON ao.id = aor.outbound_id
                                 LEFT JOIN assemblies a ON aor.assembly_id = a.id 
@@ -218,9 +293,11 @@ if ($active_tab !== 'all') {
                                     <span class="fw-semibold text-dark small"><?= $row['multi_assemblies'] ?: 'Custom Order' ?></span>
                                 </td>
                                 <td class="text-center">
-                                    <div class="fw-bold"><?= $row['total_units_sum'] ?: 0 ?> <span class="text-muted fw-normal" style="font-size: 0.70rem;">Unit</span></div>
-                                    <?php if(isset($row['total_received']) && $row['total_received'] > 0 && $row['status'] == 'Pending'): ?>
-                                    <div class="text-success mt-1" style="font-size: 0.70rem;"><i class="bi bi-check2-all"></i> Diterima: <?= $row['total_received'] ?></div>
+                                    <div class="fw-bold"><?= $row['total_units_sum'] ?> <span class="text-muted fw-normal" style="font-size: 0.70rem;">Unit</span></div>
+                                    <?php if(isset($row['total_received']) && $row['total_received'] > 0): ?>
+                                    <div class="text-success mt-1" style="font-size: 0.70rem;">
+                                        <i class="bi bi-check2-all"></i> Diterima: <?= $row['total_received'] ?> / <?= $row['total_units_sum'] ?>
+                                    </div>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end pe-4">

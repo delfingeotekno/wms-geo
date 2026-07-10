@@ -26,6 +26,11 @@ $stmt->execute();
 $transaction = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+if ($transaction && $transaction['transaction_type'] === 'RET') {
+    header("Location: return_edit.php?id=" . $transaction_id);
+    exit();
+}
+
 $warehouse_id = (int)$transaction['warehouse_id'];
 
 if (!$transaction) {

@@ -20,7 +20,7 @@ $month = date('n', strtotime($date));
 
 // Pastikan query menargetkan kolom yang benar sesuai struktur tabel Anda
 $sql = "SELECT transaction_number FROM borrowed_transactions 
-        WHERE warehouse_id = ? AND YEAR(borrow_date) = ? AND MONTH(borrow_date) = ? 
+        WHERE warehouse_id = ? 
         ORDER BY id DESC LIMIT 1";
 
 try {
@@ -29,7 +29,7 @@ try {
         throw new Exception($conn->error);
     }
     
-    $stmt->bind_param("iii", $warehouse_id, $year, $month);
+    $stmt->bind_param("i", $warehouse_id);
     $stmt->execute();
     $result = $stmt->get_result();
 

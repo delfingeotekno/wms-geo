@@ -74,7 +74,7 @@ try {
         $rom_month = $month_romans[date('m')];
         $year = date('Y');
 
-        $sql_last_no = "SELECT transfer_no FROM transfers WHERE transfer_no LIKE '%/TAG/GTG-%' AND transfer_no LIKE '%/$year' ORDER BY id DESC LIMIT 1";
+        $sql_last_no = "SELECT transfer_no FROM transfers WHERE transfer_no LIKE '%/TAG/GTG-%' ORDER BY id DESC LIMIT 1";
         $res_last = $conn->query($sql_last_no);
         $urut = 1;
         if ($res_last && $res_last->num_rows > 0) {

@@ -99,11 +99,26 @@ if ($_SESSION['role'] === 'production') {
                                         </div>
                                     </div>
 
+                                    <div id="serial_returns_section" style="display:none;" class="mb-4">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <label class="form-label fw-bold small text-uppercase text-secondary mb-0">Komponen Berserial (Sifat Kembali) yang Kembali</label>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" id="btn_select_all_serials">Pilih Semua</button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn_deselect_all_serials">Hapus Semua</button>
+                                            </div>
+                                        </div>
+                                        <div class="bg-light p-3 border rounded" style="max-height: 200px; overflow-y: auto;">
+                                            <div id="serial_list" class="row g-2">
+                                                <!-- Dynamic Serial List -->
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="alert alert-info border-0 small d-flex align-items-center mb-4">
                                         <i class="bi bi-info-circle-fill fs-4 me-3"></i>
                                         <div>
-                                            Sistem akan otomatis menambah stok produk jadi sesuai resep masing-masing template yang Anda terima, 
-                                            dan mengembalikan komponen <strong>Sifat Kembali</strong> ke gudang secara proporsional.
+                                            Sistem akan otomatis menambah stok produk jadi sesuai resep masing-masing template yang Anda terima. 
+                                            Untuk komponen <strong>Sifat Kembali</strong>, silakan pilih nomor seri yang kembali di atas agar statusnya menjadi Tersedia lagi.
                                         </div>
                                     </div>
 
@@ -169,7 +184,7 @@ $(document).ready(function() {
                             <td>
                                 <div class="input-group input-group-sm">
                                     <input type="number" name="qty_receive[]" class="form-control text-center fw-bold" 
-                                           value="${item.remaining}" min="0" max="${item.remaining}" 
+                                           value="0" min="0" max="${item.remaining}" 
                                            ${isFull ? 'readonly' : ''}>
                                     <span class="input-group-text bg-white">/ ${item.remaining}</span>
                                 </div>
@@ -181,6 +196,38 @@ $(document).ready(function() {
             $('#empty_hint').hide();
             $('#results_container').fadeIn();
         });
+
+        // Load Returnable Serials
+        $.getJSON(`get_returnable_serials.php?outbound_id=${outboundId}`, function(serials) {
+            let sHtml = '';
+            if(serials.length > 0) {
+                serials.forEach(s => {
+                    sHtml += `
+                        <div class="col-md-4">
+                            <div class="form-check p-2 border rounded bg-white">
+                                <input class="form-check-input ms-0 me-2 return-serial-checkbox" type="checkbox" name="returned_serial_id[]" value="${s.serial_id}" id="sn_${s.serial_id}">
+                                <label class="form-check-label small" for="sn_${s.serial_id}">
+                                    <span class="fw-bold">${s.serial_number}</span><br>
+                                    <span class="text-muted" style="font-size: 0.7rem;">${s.product_name}</span>
+                                </label>
+                            </div>
+                        </div>`;
+                });
+                $('#serial_list').html(sHtml);
+                $('#serial_returns_section').fadeIn();
+            } else {
+                $('#serial_returns_section').hide();
+                $('#serial_list').html('');
+            }
+        });
+    });
+
+    // Select/Deselect All Serials
+    $(document).on('click', '#btn_select_all_serials', function() {
+        $('.return-serial-checkbox').prop('checked', true);
+    });
+    $(document).on('click', '#btn_deselect_all_serials', function() {
+        $('.return-serial-checkbox').prop('checked', false);
     });
 
     $('#formInbound').on('submit', function(e) {

@@ -50,8 +50,10 @@ $sql = "SELECT
             CASE
                 WHEN sr.status = 'Pending' THEN 'bg-warning text-dark'
                 WHEN sr.status = 'Approved' THEN 'bg-success'
+                WHEN sr.status = 'Partial' THEN 'bg-primary'
+                WHEN sr.status = 'Completed' THEN 'bg-dark'
                 WHEN sr.status = 'Rejected' THEN 'bg-danger'
-                ELSE 'bg-info text-dark'
+                ELSE 'bg-secondary'
             END AS badge_class
         FROM stock_requests sr
         JOIN users u ON sr.user_id = u.id
@@ -123,6 +125,8 @@ $stmt->close();
 
                         <option value="Pending" <?= $status_filter == 'Pending' ? 'selected' : '' ?>>Pending</option>
                         <option value="Approved" <?= $status_filter == 'Approved' ? 'selected' : '' ?>>Approved</option>
+                        <option value="Partial" <?= $status_filter == 'Partial' ? 'selected' : '' ?>>Partial</option>
+                        <option value="Completed" <?= $status_filter == 'Completed' ? 'selected' : '' ?>>Completed</option>
                         <option value="Rejected" <?= $status_filter == 'Rejected' ? 'selected' : '' ?>>Rejected</option>
                     </select>
                 </form>

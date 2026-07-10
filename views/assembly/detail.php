@@ -32,8 +32,8 @@ $results = $stmt_res->get_result();
 $has_results = $results->num_rows > 0;
 
 // 3. Ambil data Detail Item yang keluar (Group by product to show serials together)
-$sql_items = "SELECT aoi.product_id, p.product_name, p.product_code, SUM(aoi.qty_out) as qty_out, 
-                     GROUP_CONCAT(aoi.serial_number SEPARATOR ', ') as serials, 
+$sql_items = "SELECT aoi.product_id, p.product_name, p.product_code, p.has_serial,
+                     SUM(aoi.qty_out) as qty_out, 
                      aoi.is_returnable
               FROM assembly_outbound_items aoi
               JOIN products p ON aoi.product_id = p.id 
@@ -43,6 +43,26 @@ $stmt_items = $conn->prepare($sql_items);
 $stmt_items->bind_param("i", $id);
 $stmt_items->execute();
 $items = $stmt_items->get_result();
+
+// 3b. Ambil detail per-serial dengan status aktual dari tabel serial_numbers
+$sql_serials = "SELECT aoi.product_id, aoi.serial_number, aoi.serial_id, 
+                       COALESCE(sn.status, 'Keluar') as sn_status
+                FROM assembly_outbound_items aoi
+                LEFT JOIN serial_numbers sn ON aoi.serial_id = sn.id
+                WHERE aoi.outbound_id = ? AND aoi.serial_number IS NOT NULL
+                ORDER BY aoi.product_id, sn.status DESC, aoi.serial_number";
+$stmt_sn = $conn->prepare($sql_serials);
+$stmt_sn->bind_param("i", $id);
+$stmt_sn->execute();
+$serials_result = $stmt_sn->get_result();
+
+// Group serials by product_id
+$serial_map = [];
+while ($sn_row = $serials_result->fetch_assoc()) {
+    $pid = $sn_row['product_id'];
+    if (!isset($serial_map[$pid])) $serial_map[$pid] = [];
+    $serial_map[$pid][] = $sn_row;
+}
 ?>
 
 <div class="container-fluid">
@@ -87,7 +107,7 @@ $items = $stmt_items->get_result();
                                 <td colspan="2">
                                     <div class="ms-3 d-flex justify-content-between border-start ps-2">
                                         <span class="small text-dark fw-bold"><?= $res['assembly_name'] ?></span>
-                                        <span class="badge bg-info text-dark"><?= $res['qty'] ?> Unit</span>
+                                        <span class="badge bg-info text-dark"><?= $res['received_qty'] ?> / <?= $res['qty'] ?> Unit</span>
                                     </div>
                                 </td>
                             </tr>
@@ -96,6 +116,10 @@ $items = $stmt_items->get_result();
                             <tr>
                                 <td class="text-muted">Jenis Rakitan</td>
                                 <td>: <span class="badge bg-secondary">Manual (Tanpa Template)</span></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Unit</td>
+                                <td>: <strong><?= $header['total_units'] ?></strong> Unit</td>
                             </tr>
                         <?php endif; ?>
                         <tr>
@@ -132,16 +156,38 @@ $items = $stmt_items->get_result();
                                 <?php 
                                 $no = 1;
                                 while($row = $items->fetch_assoc()): 
+                                    $pid = $row['product_id'];
+                                    $product_serials = $serial_map[$pid] ?? [];
+                                    
+                                    // Hitung jumlah yang sudah kembali (Tersedia) dari status aktual serial_numbers
+                                    $actual_returned = 0;
+                                    foreach ($product_serials as $sn_info) {
+                                        if (in_array($sn_info['sn_status'], ['Tersedia', 'Tersedia (Bekas)'])) {
+                                            $actual_returned++;
+                                        }
+                                    }
+                                    // Untuk non-serial returnable, gunakan qty_returned dari items
+                                    if (empty($product_serials) && $row['is_returnable']) {
+                                        // Ambil qty_returned langsung
+                                        $q_ret = $conn->query("SELECT COALESCE(SUM(qty_returned), 0) as total_ret FROM assembly_outbound_items WHERE outbound_id = $id AND product_id = $pid")->fetch_assoc();
+                                        $actual_returned = (int)$q_ret['total_ret'];
+                                    }
                                 ?>
                                 <tr>
                                     <td><?= $no++ ?></td>
                                     <td><code class="fw-bold"><?= $row['product_code'] ?></code></td>
                                     <td>
                                         <?= htmlspecialchars($row['product_name']) ?>
-                                        <?php if (!empty($row['serials'])): ?>
+                                        <?php if (!empty($product_serials)): ?>
                                             <div class="mt-1">
-                                                <?php foreach(explode(', ', $row['serials']) as $sn): ?>
-                                                    <span class="badge bg-light text-dark border small me-1"><?= htmlspecialchars($sn) ?></span>
+                                                <?php foreach($product_serials as $sn_info): 
+                                                    $is_available = in_array($sn_info['sn_status'], ['Tersedia', 'Tersedia (Bekas)']);
+                                                    $badge_class = $is_available 
+                                                        ? 'bg-success text-white' 
+                                                        : 'bg-light text-dark border';
+                                                    $icon = $is_available ? '<i class="bi bi-check-circle-fill me-1"></i>' : '';
+                                                ?>
+                                                    <span class="badge <?= $badge_class ?> small me-1 mb-1" title="<?= $sn_info['sn_status'] ?>"><?= $icon ?><?= htmlspecialchars($sn_info['serial_number']) ?></span>
                                                 <?php endforeach; ?>
                                             </div>
                                         <?php endif; ?>
@@ -150,14 +196,13 @@ $items = $stmt_items->get_result();
                                     <td class="text-center">
                                         <?php 
                                         $is_ret = $row['is_returnable'] ?? 0;
-                                        $qty_ret = $row['qty_returned'] ?? 0;
                                         $qty_out = $row['qty_out'];
                                         
                                         if ($is_ret == 1): 
-                                            if ($qty_ret >= $qty_out): ?>
-                                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Selesai Kembali: <?= $qty_ret ?> / <?= $qty_out ?></span>
+                                            if ($actual_returned >= $qty_out): ?>
+                                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Selesai Kembali: <?= $actual_returned ?> / <?= $qty_out ?></span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning text-dark"><i class="bi bi-arrow-return-left"></i> Kembali: <?= $qty_ret ?> / <?= $qty_out ?></span>
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-arrow-return-left"></i> Kembali: <?= $actual_returned ?> / <?= $qty_out ?></span>
                                             <?php endif; ?>
                                         <?php else: ?>
                                             <span class="badge bg-secondary">Habis Pakai</span>
@@ -171,6 +216,7 @@ $items = $stmt_items->get_result();
                     <div class="alert alert-info small mt-3">
                         <i class="bi bi-info-circle me-2"></i>
                         Barang-barang di atas telah dipotong otomatis dari stok utama saat transaksi diproses.
+                        <span class="badge bg-success text-white ms-2"><i class="bi bi-check-circle-fill me-1"></i>Hijau</span> = Serial sudah kembali (Tersedia)
                     </div>
                 </div>
             </div>

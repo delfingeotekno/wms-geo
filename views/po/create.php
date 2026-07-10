@@ -18,7 +18,7 @@ $bulan_romawi = getRomawi(date('m'));
 $tahun = date('Y');
 
 $sql_last = "SELECT po_number FROM purchase_orders 
-             WHERE po_number LIKE '%/$tahun'
+             WHERE po_number LIKE 'PO/%'
              ORDER BY id DESC LIMIT 1";
 $res_last = $conn->query($sql_last);
 
@@ -192,6 +192,29 @@ $no_po = "PO/GEO-JKT/$next_num/$bulan_romawi/$tahun";
                             <span class="text-muted">PPN (11%)</span>
                             <span id="ppnText" class="fw-semibold text-dark">0</span>
                         </div>
+
+                        <!-- Tambahan Ongkir & Biaya Layanan -->
+                        <div class="form-check form-switch mb-3 mt-3">
+                            <input class="form-check-input" type="checkbox" id="toggleFees">
+                            <label class="form-check-label fw-bold small text-muted" for="toggleFees">Tambah Biaya Lainnya?</label>
+                        </div>
+
+                        <div id="additionalFees" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Ongkos Kirim</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0">IDR</span>
+                                    <input type="number" name="shipping_cost" id="shipping_cost" class="form-control border-start-0 ps-0 fee-input" value="0" step="any">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Biaya Jasa + Layanan</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0">IDR</span>
+                                    <input type="number" name="service_fee" id="service_fee" class="form-control border-start-0 ps-0 fee-input" value="0" step="any">
+                                </div>
+                            </div>
+                        </div>
                         <hr class="my-3">
                         <div class="d-flex justify-content-between mb-4">
                             <span class="h5 mb-0 text-dark">Grand Total</span>
@@ -250,8 +273,18 @@ $(document).ready(function() {
         calculateTotal();
     });
 
-    $(document).on('input', '.qty, .price, .discount', function() {
+    $(document).on('input', '.qty, .price, .discount, .fee-input', function() {
         calculateTotal();
+    });
+
+    $("#toggleFees").change(function() {
+        if($(this).is(":checked")) {
+            $("#additionalFees").slideDown();
+        } else {
+            $("#additionalFees").slideUp();
+            $("#shipping_cost, #service_fee").val(0);
+            calculateTotal();
+        }
     });
 
     function calculateTotal() {
@@ -269,7 +302,11 @@ $(document).ready(function() {
         });
 
         let ppn = (taxStatus === 'PPN') ? Math.ceil(subtotal * 0.11) : 0;
-        let grandTotal = subtotal + ppn;
+        
+        let shipping = parseFloat($("#shipping_cost").val()) || 0;
+        let service = parseFloat($("#service_fee").val()) || 0;
+        
+        let grandTotal = subtotal + ppn + shipping + service;
 
         $("#subtotalText").text(subtotal.toLocaleString('id-ID'));
         $("#ppnText").text(ppn.toLocaleString('id-ID'));

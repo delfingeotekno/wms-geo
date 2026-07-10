@@ -12,6 +12,13 @@ $product_id = isset($_GET['product_id']) ? intval($_GET['product_id']) : 0;
 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : '';
 $end_date   = isset($_GET['end_date']) ? $_GET['end_date'] : '';
 $type_filter = isset($_GET['type']) ? $_GET['type'] : '';
+$warehouse_filter = isset($_GET['warehouse_id']) ? intval($_GET['warehouse_id']) : 0;
+
+$cond_it = $warehouse_filter > 0 ? " AND it.warehouse_id = $warehouse_filter" : "";
+$cond_ot = $warehouse_filter > 0 ? " AND ot.warehouse_id = $warehouse_filter" : "";
+$cond_bt = $warehouse_filter > 0 ? " AND bt.warehouse_id = $warehouse_filter" : "";
+$cond_ao = $warehouse_filter > 0 ? " AND ao.warehouse_id = $warehouse_filter" : "";
+$cond_adj = $warehouse_filter > 0 ? " AND warehouse_id = $warehouse_filter" : "";
 
 if ($product_id <= 0) exit('Invalid Product ID');
 
@@ -31,13 +38,13 @@ $total_in = 0; $total_out = 0; $initial_balance = 0;
 
 // 1. Discrepancy (Total Pergerakan vs Stok Riil)
 $sql_disc = [
-    "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0",
-    "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0",
-    "SELECT 0 as q_in, SUM(btd.quantity) as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND bt.is_deleted = 0",
-    "SELECT SUM(btd.quantity) as q_in, 0 as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND btd.return_date IS NOT NULL AND bt.is_deleted = 0",
-    "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ?",
+    "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0" . $cond_it,
+    "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0" . $cond_ot,
+    "SELECT 0 as q_in, SUM(btd.quantity) as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND bt.is_deleted = 0" . $cond_bt,
+    "SELECT SUM(btd.quantity) as q_in, 0 as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND btd.return_date IS NOT NULL AND bt.is_deleted = 0" . $cond_bt,
+    "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ?" . $cond_ao,
     "SELECT SUM(ao.total_units) as q_in, 0 as q_out FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = ? AND ao.status = 'Completed'",
-    "SELECT SUM(IF(type='Masuk', quantity, 0)) as q_in, SUM(IF(type='Keluar', quantity, 0)) as q_out FROM stock_adjustments WHERE product_id = ?"
+    "SELECT SUM(IF(type='Masuk', quantity, 0)) as q_in, SUM(IF(type='Keluar', quantity, 0)) as q_out FROM stock_adjustments WHERE product_id = ?" . $cond_adj
 ];
 $total_movements = 0;
 foreach ($sql_disc as $q) {
@@ -49,7 +56,11 @@ foreach ($sql_disc as $q) {
     $st->close();
 }
 
-$res_stock = $conn->query("SELECT stock FROM products WHERE id = $product_id");
+if ($warehouse_filter > 0) {
+    $res_stock = $conn->query("SELECT stock FROM warehouse_stocks WHERE product_id = $product_id AND warehouse_id = $warehouse_filter");
+} else {
+    $res_stock = $conn->query("SELECT stock FROM products WHERE id = $product_id");
+}
 $current_actual_stock = (int)($res_stock->fetch_assoc()['stock'] ?? 0);
 $system_start_balance = $current_actual_stock - $total_movements;
 $initial_balance = $system_start_balance;
@@ -57,13 +68,13 @@ $initial_balance = $system_start_balance;
 // 2. Saldo Sebelum Filter Tanggal
 if (!empty($start_date)) {
     $bal_sql = [
-        "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0 AND DATE(it.created_at) < '$start_date'",
-        "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0 AND DATE(ot.created_at) < '$start_date'",
-        "SELECT 0 as q_in, SUM(btd.quantity) as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND bt.is_deleted = 0 AND DATE(bt.created_at) < '$start_date'",
-        "SELECT SUM(btd.quantity) as q_in, 0 as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND btd.return_date IS NOT NULL AND bt.is_deleted = 0 AND DATE(btd.return_date) < '$start_date'",
-        "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ? AND DATE(ao.created_at) < '$start_date'",
+        "SELECT SUM(itd.quantity) as q_in, 0 as q_out FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = ? AND it.is_deleted = 0 AND DATE(itd.created_at) < '$start_date'" . $cond_it,
+        "SELECT 0 as q_in, SUM(otd.quantity) as q_out FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id WHERE otd.product_id = ? AND ot.is_deleted = 0 AND DATE(otd.created_at) < '$start_date'" . $cond_ot,
+        "SELECT 0 as q_in, SUM(btd.quantity) as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND bt.is_deleted = 0 AND DATE(bt.created_at) < '$start_date'" . $cond_bt,
+        "SELECT SUM(btd.quantity) as q_in, 0 as q_out FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id WHERE btd.product_id = ? AND btd.return_date IS NOT NULL AND bt.is_deleted = 0 AND DATE(btd.return_date) < '$start_date'" . $cond_bt,
+        "SELECT 0 as q_in, SUM(aoi.qty_out) as q_out FROM assembly_outbound_items aoi JOIN assembly_outbound ao ON ao.id = aoi.outbound_id WHERE aoi.product_id = ? AND DATE(ao.created_at) < '$start_date'" . $cond_ao,
         "SELECT SUM(ao.total_units) as q_in, 0 as q_out FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = ? AND ao.status = 'Completed' AND DATE(ao.created_at) < '$start_date'",
-        "SELECT SUM(IF(type='Masuk', quantity, 0)) as q_in, SUM(IF(type='Keluar', quantity, 0)) as q_out FROM stock_adjustments WHERE product_id = ? AND DATE(created_at) < '$start_date'"
+        "SELECT SUM(IF(type='Masuk', quantity, 0)) as q_in, SUM(IF(type='Keluar', quantity, 0)) as q_out FROM stock_adjustments WHERE product_id = ? AND DATE(created_at) < '$start_date'" . $cond_adj
     ];
     foreach ($bal_sql as $q) {
         $st = $conn->prepare($q);
@@ -81,28 +92,28 @@ $params = []; $types = "";
 
 // Inbound
 if (empty($type_filter) || $type_filter == 'Masuk') {
-    $w = "WHERE itd.product_id = ? AND it.is_deleted = 0";
+    $w = "WHERE itd.product_id = ? AND it.is_deleted = 0" . $cond_it;
     $p = [$product_id]; $t = "i";
-    if (!empty($start_date)) { $w .= " AND DATE(it.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
-    if (!empty($end_date))   { $w .= " AND DATE(it.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
-    $sql_parts[] = "(SELECT it.created_at AS date, 'Masuk' AS type, it.transaction_number, it.id AS transaction_id, SUM(itd.quantity) as quantity, it.sender AS counterparty, SUM(itd.quantity) AS quantity_in, 0 AS quantity_out 
+    if (!empty($start_date)) { $w .= " AND DATE(itd.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
+    if (!empty($end_date))   { $w .= " AND DATE(itd.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
+    $sql_parts[] = "(SELECT MAX(itd.created_at) AS date, 'Masuk' AS type, it.transaction_number, it.id AS transaction_id, SUM(itd.quantity) as quantity, it.sender AS counterparty, SUM(itd.quantity) AS quantity_in, 0 AS quantity_out 
                     FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id $w GROUP BY it.id)";
     $params = array_merge($params, $p); $types .= $t;
 }
 // Outbound
 if (empty($type_filter) || $type_filter == 'Keluar') {
-    $w = "WHERE otd.product_id = ? AND ot.is_deleted = 0";
+    $w = "WHERE otd.product_id = ? AND ot.is_deleted = 0" . $cond_ot;
     $p = [$product_id]; $t = "i";
-    if (!empty($start_date)) { $w .= " AND DATE(ot.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
-    if (!empty($end_date))   { $w .= " AND DATE(ot.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
-    $sql_parts[] = "(SELECT ot.created_at AS date, 'Keluar' AS type, ot.transaction_number, ot.id AS transaction_id, SUM(otd.quantity) as quantity, ot.recipient AS counterparty, 0 AS quantity_in, SUM(otd.quantity) AS quantity_out 
+    if (!empty($start_date)) { $w .= " AND DATE(otd.created_at) >= ?"; $p[] = $start_date; $t .= "s"; }
+    if (!empty($end_date))   { $w .= " AND DATE(otd.created_at) <= ?"; $p[] = $end_date; $t .= "s"; }
+    $sql_parts[] = "(SELECT MAX(otd.created_at) AS date, 'Keluar' AS type, ot.transaction_number, ot.id AS transaction_id, SUM(otd.quantity) as quantity, ot.recipient AS counterparty, 0 AS quantity_in, SUM(otd.quantity) AS quantity_out 
                     FROM outbound_transaction_details otd JOIN outbound_transactions ot ON ot.id = otd.transaction_id $w GROUP BY ot.id)";
     $params = array_merge($params, $p); $types .= $t;
 }
 // Borrow/Return
 if (empty($type_filter) || $type_filter == 'Peminjaman') {
     // Keluar (Borrow)
-    $w_b = "WHERE btd.product_id = ? AND bt.is_deleted = 0";
+    $w_b = "WHERE btd.product_id = ? AND bt.is_deleted = 0" . $cond_bt;
     $p_b = [$product_id]; $t_b = "i";
     if (!empty($start_date)) { $w_b .= " AND DATE(bt.created_at) >= ?"; $p_b[] = $start_date; $t_b .= "s"; }
     if (!empty($end_date))   { $w_b .= " AND DATE(bt.created_at) <= ?"; $p_b[] = $end_date; $t_b .= "s"; }
@@ -110,7 +121,7 @@ if (empty($type_filter) || $type_filter == 'Peminjaman') {
                     FROM borrowed_transactions_detail btd JOIN borrowed_transactions bt ON bt.id = btd.transaction_id $w_b GROUP BY bt.id)";
     $params = array_merge($params, $p_b); $types .= $t_b;
     // Masuk (Return)
-    $w_r = "WHERE btd.product_id = ? AND bt.is_deleted = 0 AND btd.return_date IS NOT NULL";
+    $w_r = "WHERE btd.product_id = ? AND bt.is_deleted = 0 AND btd.return_date IS NOT NULL" . $cond_bt;
     $p_r = [$product_id]; $t_r = "i";
     if (!empty($start_date)) { $w_r .= " AND DATE(btd.return_date) >= ?"; $p_r[] = $start_date; $t_r .= "s"; }
     if (!empty($end_date))   { $w_r .= " AND DATE(btd.return_date) <= ?"; $p_r[] = $end_date; $t_r .= "s"; }
@@ -121,7 +132,7 @@ if (empty($type_filter) || $type_filter == 'Peminjaman') {
 // Assembly
 if (empty($type_filter) || $type_filter == 'Perakitan') {
     // Keluar
-    $w_ao = "WHERE aoi.product_id = ?";
+    $w_ao = "WHERE aoi.product_id = ?" . $cond_ao;
     $p_ao = [$product_id]; $t_ao = "i";
     if (!empty($start_date)) { $w_ao .= " AND DATE(ao.created_at) >= ?"; $p_ao[] = $start_date; $t_ao .= "s"; }
     if (!empty($end_date))   { $w_ao .= " AND DATE(ao.created_at) <= ?"; $p_ao[] = $end_date; $t_ao .= "s"; }
@@ -139,7 +150,7 @@ if (empty($type_filter) || $type_filter == 'Perakitan') {
 }
 // Adjustments
 if (empty($type_filter) || $type_filter == 'Masuk' || $type_filter == 'Keluar') {
-    $w_adj = "WHERE product_id = ?";
+    $w_adj = "WHERE product_id = ?" . $cond_adj;
     $p_adj = [$product_id]; $t_adj = "i";
     if (!empty($start_date)) { $w_adj .= " AND DATE(created_at) >= ?"; $p_adj[] = $start_date; $t_adj .= "s"; }
     if (!empty($end_date))   { $w_adj .= " AND DATE(created_at) <= ?"; $p_adj[] = $end_date; $t_adj .= "s"; }
@@ -171,8 +182,8 @@ if ($system_start_balance > 0) {
     $first_stock_val = $system_start_balance;
 } else {
     $sql_f = "SELECT q FROM (
-        SELECT itd.quantity as q, it.created_at as d FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = $product_id AND it.is_deleted = 0
-        UNION ALL SELECT quantity as q, created_at as d FROM stock_adjustments WHERE product_id = $product_id AND type = 'Masuk'
+        SELECT itd.quantity as q, MAX(itd.created_at) as d FROM inbound_transaction_details itd JOIN inbound_transactions it ON it.id = itd.transaction_id WHERE itd.product_id = $product_id AND it.is_deleted = 0 $cond_it GROUP BY it.id
+        UNION ALL SELECT quantity as q, created_at as d FROM stock_adjustments WHERE product_id = $product_id AND type = 'Masuk' $cond_adj
         UNION ALL SELECT ao.total_units as q, ao.created_at as d FROM assembly_outbound ao JOIN assemblies a ON a.id = ao.assembly_id WHERE a.finished_product_id = $product_id AND ao.status = 'Completed'
     ) as t ORDER BY d ASC LIMIT 1";
     $first_stock_val = (int)($conn->query($sql_f)->fetch_assoc()['q'] ?? 0);
