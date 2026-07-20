@@ -101,12 +101,12 @@ if ($product_id > 0) {
     $total_movements = (int)$stmt_disc->get_result()->fetch_assoc()['total_movements'];
     $stmt_disc->close();
 
-    // Ambil stok produk saat ini dari tabel products
+    // Ambil stok produk saat ini dari warehouse_stocks (sumber kebenaran)
     $current_actual_stock = 0;
     if ($warehouse_filter > 0) {
-        $res_stock = $conn->query("SELECT stock FROM warehouse_stocks WHERE product_id = $product_id AND warehouse_id = $warehouse_filter");
+        $res_stock = $conn->query("SELECT IFNULL(stock, 0) as stock FROM warehouse_stocks WHERE product_id = $product_id AND warehouse_id = $warehouse_filter");
     } else {
-        $res_stock = $conn->query("SELECT stock FROM products WHERE id = $product_id");
+        $res_stock = $conn->query("SELECT IFNULL(SUM(stock), 0) as stock FROM warehouse_stocks WHERE product_id = $product_id");
     }
     if ($row_s = $res_stock->fetch_assoc()) {
         $current_actual_stock = (int)$row_s['stock'];
@@ -114,6 +114,8 @@ if ($product_id > 0) {
 
     // Saldo Awal Sistem (Stok Awal + Manual Adjustment)
     $system_start_balance = $current_actual_stock - $total_movements;
+    // Pastikan saldo awal tidak negatif
+    if ($system_start_balance < 0) $system_start_balance = 0;
     $initial_balance = $system_start_balance;
 
     // --- 2. JIKA ADA FILTER TANGGAL, HITUNG SALDO SEBELUM START_DATE ---
@@ -322,6 +324,8 @@ if ($product_id > 0) {
             $total_out += $record['quantity_out'];
             
             $current_bal = $current_bal + $record['quantity_in'] - $record['quantity_out'];
+            // Pastikan saldo berjalan tidak pernah negatif
+            if ($current_bal < 0) $current_bal = 0;
             $record['running_balance'] = $current_bal;
         }
         unset($record);
